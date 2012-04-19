@@ -16,7 +16,7 @@ teleopControl.py sends Twist commands from a joystick.
 def main():
     global pub
     rospy.loginfo("starting Twist Publishing via Joystick...")
-    rospy.init_node('oferTwister')
+    rospy.init_node('teleopControl')
 
     pub = rospy.Publisher('/cmd_vel', Twist) 
     rospy.Subscriber("/joy", Joy, joystickChanged) 
