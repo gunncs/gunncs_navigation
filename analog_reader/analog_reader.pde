@@ -31,7 +31,7 @@ int analogValues[6];
 void setup() {
   Serial.begin(9600);
   // declare the ledPin as an OUTPUT:
-  pinMode(ledPin, OUTPUT);  
+//  pinMode(ledPin, OUTPUT);  
 }
 
 void loop() {
