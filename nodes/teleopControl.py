@@ -26,8 +26,8 @@ def joystickChanged(data):
     #print data.axes[1]
     #print data.axes[5]
     msg = Twist()
-    msg.linear.x = -data.axes[1]
-    msg.angular.z = 3*data.axes[5] 
+    msg.linear.x = .5*data.axes[1]
+    msg.angular.z = 2*data.axes[0] 
     pub.publish(msg)
 
 
