@@ -11,13 +11,12 @@ from std_msgs.msg import *
 from geometry_msgs.msg import *
 from sensor_msgs.msg import *
 
-
 from pyqtgraph.Qt import QtGui, QtCore
 import numpy as np
 import pyqtgraph as pg
 
 
-
+NEIGHBOR_RANGE= 2
 
 def main():
     rospy.loginfo("starting laserAngle")
@@ -25,7 +24,7 @@ def main():
     #open plotter
     rospy.loginfo("starting plotter...")
 
-    global rangeCurve, errorCurve
+    global rangeCurve, errorCurve, centersCurve
     app = QtGui.QApplication([])
     
     win = pg.GraphicsWindow(title="Basic plotting examples")
@@ -38,9 +37,10 @@ def main():
     errorPlot = win.addPlot(title="delta R")
     #errorPlot.enableAutoRange('xy', True)
     #errorPlot.setYRange(0, .05)
-    errorPlot.setYRange(0, 1)
+    errorPlot.setYRange(0, .2)
     errorPlot.setXRange(120, 230)
-    errorCurve = errorPlot.plot(pen='y')
+    errorCurve = errorPlot.plot(pen=(255, 0,0))
+    centersCurve = errorPlot.plot(pen=(0,255,0))
 
 
     #open vis
@@ -59,12 +59,36 @@ def main():
 def scanned(laserscan):
     global  window, win, rangeCurve
 
+    #laserscan = filter(laserscan)
+    #laserscan= filter(laserscan)
+    #laserscan= filter(laserscan)
+
     #update plot
     rangeCurve.setData(np.array(laserscan.ranges))
 
     #draw vis
     drawVis(laserscan)
-    calculateError(laserscan)
+    errors = calculateError(laserscan)
+    filterError(errors)
+
+def filterError(errors):
+
+    global centersCurve
+
+    positions = []
+    values = []
+    for i in range(0, len(errors)):
+        if errors[i] > .04:
+            positions.append(i)
+            values.append(.03)
+        else:
+            positions.append(i)
+            values.append(0)
+
+    #print(positions)
+
+    centersCurve.setData(np.array(positions), np.array(values))
+
 
 def getNeighborDistance(laserscan, id, neighborRange):
     mydistance = laserscan.ranges[id]
@@ -78,23 +102,42 @@ def getNeighborDistance(laserscan, id, neighborRange):
         
 
 def filter(laserscan):
-    last_range = 0
+    global NEIGHBOR_RANGE
+    corrections = list()
+    ranges = list()
     for i in range(0, len(laserscan.ranges)-1):
-        error = getNeighborDistance(laserscan, i, 5)
+        ranges.append(laserscan.ranges[i])
+        error = getNeighborDistance(laserscan, i, NEIGHBOR_RANGE)
+        if error > .04:
+            #toadd = [i, laserscan.ranges[i + 1)]
+            corrections.append((i, laserscan.ranges[i+1]))
+            #corrections.append(toadd)
+        
+
+
+    for i in range(0, len(corrections) ):
+        #laserscan.ranges[(corrections[i])[0]] = (corrections[i])[1]
+        ranges.pop((corrections[i])[0])
+        ranges.insert(i, (corrections[i])[1])
+    
+
+    laserscan.ranges = ranges;
+    return laserscan
 
         
 def calculateError(laserscan):
     #print laserscan
-    global errorCurve
+    global errorCurve, NEIGHBOR_RANGE
     #print(calculateSlope(laserscan, 200, 210))
 
     
     errors= []
 
     for i in range(0, len(laserscan.ranges)):
-        errors.append(getNeighborDistance(laserscan, i, 2))
+        errors.append(getNeighborDistance(laserscan, i, NEIGHBOR_RANGE))
 
     errorCurve.setData(np.array(errors))
+    return errors
     
 
 
