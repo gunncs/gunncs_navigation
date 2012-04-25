@@ -194,8 +194,10 @@ def drawVis(laserscan, bounds):
 
 
     
+    bound = 0
+    color = nonRandomColor(bound)
     for i in range(0, len(laserscan.ranges)):
-
+        #print(bounds[bound])
         if i is (bounds[bound % len(bounds)])[1]:
             color = nonRandomColor(bound)
             bound = bound + 1
