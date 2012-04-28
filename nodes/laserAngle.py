@@ -7,6 +7,7 @@ import sys
 import pygame
 import math
 import random
+import time
 
 from std_msgs.msg import *
 from geometry_msgs.msg import *
@@ -17,6 +18,7 @@ import numpy as np
 import pyqtgraph as pg
 
 
+INTERSECT_THRESHOLD = .04
 NEIGHBOR_RANGE= 2
 COLORS = {}
 
@@ -25,6 +27,11 @@ def main():
     #global window, win, plot, rangeCurve
     #open plotter
     rospy.loginfo("starting plotter...")
+
+
+    ''' 
+    PLOTS
+    '''
 
     global rangeCurve, errorCurve, centersCurve
     app = QtGui.QApplication([])
@@ -45,6 +52,11 @@ def main():
     centersCurve = errorPlot.plot(pen=(0,255,0))
 
 
+    '''
+    Visualization
+    '''
+
+
     #open vis
     rospy.loginfo("starting visualization...")
     global window
@@ -59,20 +71,21 @@ def main():
     rospy.spin()
 
 def scanned(laserscan):
+    '''
+    laserscan callback
+    '''
     global  window, win, rangeCurve
-
-    #laserscan = filter(laserscan)
-    #laserscan= filter(laserscan)
-    #laserscan= filter(laserscan)
 
     #update plot
     rangeCurve.setData(np.array(laserscan.ranges))
 
     #draw vis
-    errors = calculateError(laserscan)
+    errors = getErrorMap(laserscan)
     intersects = getIntersects(errors)
-    clusters = getClusters(intersects)
-    drawVis(laserscan, clusters)
+    #print(intersects)
+    errorClusters= getClusters(intersects)
+    print errorClusters
+    drawVis(laserscan, errorClusters)
     #print(intersects)
 
 def getClusters(positions):
@@ -86,13 +99,19 @@ def getClusters(positions):
     previousPos = positions[0] -1 # we force the first item to be a cluster
 
 
+    #print positions
     for position in positions:
+        '''
+        print("pos:" + str(position) + "\t" + "cs" + str(currentClusterStart) 
+                + "\tpp:" + str(previousPos))
+        '''
         #if we see that we are continuous,
-        if previousPos + 1 is position:
+        #if previousPos + 1 is position:
+        if position - previousPos is 1:
             #and this is the first time, we record this position.
             if currentClusterStart is -1:
                 currentClusterStart= previousPos
-        #if we lost continuity,
+        #if we lost continuity
         else:
             #we end the cluster
             clusters.append([currentClusterStart , previousPos])
@@ -106,15 +125,16 @@ def getClusters(positions):
     return clusters
 
 def getIntersects(errors):
-    global centersCurve
+    global centersCurve, INTERSECT_THRESHOLD
 
     positions = []
     values = []
     for i in range(0, len(errors)):
-        if errors[i] > .04:
-            positions.append(i)
+        if errors[i] > INTERSECT_THRESHOLD:
+            #positions.append(i)
             values.append(.03)
         else:
+            positions.append(i)
             values.append(0)
 
     #print(positions)
@@ -124,7 +144,12 @@ def getIntersects(errors):
     return positions
 
 
-def getNeighborDistance(laserscan, id, neighborRange):
+def deltaR(laserscan, id, neighborRange):
+    '''
+    calculates the change of R-- radius-- from
+    surrounding points indicated by the range
+    to the point at id
+    '''
     mydistance = laserscan.ranges[id]
     error = 0
     lowerbound = (id - neighborRange) % len(laserscan.ranges)
@@ -141,7 +166,7 @@ def filter(laserscan):
     ranges = list()
     for i in range(0, len(laserscan.ranges)-1):
         ranges.append(laserscan.ranges[i])
-        error = getNeighborDistance(laserscan, i, NEIGHBOR_RANGE)
+        error = deltaR(laserscan, i, NEIGHBOR_RANGE)
         if error > .04:
             #toadd = [i, laserscan.ranges[i + 1)]
             corrections.append((i, laserscan.ranges[i+1]))
@@ -159,46 +184,53 @@ def filter(laserscan):
     return laserscan
 
         
-def calculateError(laserscan):
+def getErrorMap(laserscan):
     #print laserscan
     global errorCurve, NEIGHBOR_RANGE
     #print(calculateSlope(laserscan, 200, 210))
     errors= []
     for i in range(0, len(laserscan.ranges)):
-        errors.append(getNeighborDistance(laserscan, i, NEIGHBOR_RANGE))
+        errors.append(deltaR(laserscan, i, NEIGHBOR_RANGE))
 
     errorCurve.setData(np.array(errors))
     return errors
-    
-
 
         #print(str(p1) + "\t" + str(p1[0]))
 def calculateSlope(laserscan, n1, n2):
-    p1 = getPoint(laserscan, n1)
-    p2 = getPoint(laserscan, n2)
+    p1 = getLaserPoint(laserscan, n1)
+    p2 = getLaserPoint(laserscan, n2)
     m = (p2[1] - p1[1]) / (p2[0] - p1[0])
     return m
 
     
 
-def getPoint(laserscan, n):
+def getLaserPoint(laserscan, n):
     theta = laserscan.angle_min + laserscan.angle_increment * n
     x = laserscan.ranges[n] * math.cos(theta)
     y = laserscan.ranges[n] * math.sin(theta)
     return (x, y)
 
 def drawVis(laserscan, bounds):
+    '''
+    Draws the laserscan 
+    currently the points are colorized according to 
+    the clusters identified.
+
+    '''
     global window
     pygame.draw.rect(window, (0,0,0), (0, 0, 640, 640))
     pygame.draw.circle(window, (255,0,0), (0, 320), 20, 0)
 
+    #if len(bounds) > 1:
+        #getSlope(laserscan, bounds[1])
 
     
-    bound = 0
-    color = nonRandomColor(bound)
+    bound = 0 #which bound we are in
+    color = nonRandomColor(bound) # color for the bound
+    #print bounds
     for i in range(0, len(laserscan.ranges)):
-        #print(bounds[bound])
-        if i is (bounds[bound % len(bounds)])[1]:
+        #advance bound if out of bounds
+        if i is (bounds[bound % len(bounds)])[0]:
             color = nonRandomColor(bound)
             bound = bound + 1
 
@@ -210,7 +242,20 @@ def drawVis(laserscan, bounds):
         
         pygame.draw.circle(window, color, (int(x), int(y)), 1, 0)
 
+
     pygame.display.flip()
+
+def getSlope(laserscan, bound):
+    tmpx = []
+    #x = np.array(bound)
+    for x in range(bound[0], bound[1]):
+        tmpx.append(tmpx)
+    tmpy = []
+    for boundx in bound:
+        tmpy.append(laserscan.ranges[boundx])
+    x = np.array(bound)
+    y = np.array(tmpy)
+    print x
 
 
 
