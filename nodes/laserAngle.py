@@ -236,31 +236,33 @@ def drawVis(laserscan, bounds):
     
     bound = 0 #which bound we are in
     color = nonRandomColor(bound) # color for the bound
-    slope = -.45
+    slope = 0
     for i in range(0, len(laserscan.ranges)):
         #advance bound if out of bounds
-        selected = False
+        theta = -(laserscan.angle_min + laserscan.angle_increment * i)
+        x = 320 + 300 *laserscan.ranges[i] * math.sin(theta)
+        y = 640 - 300 *laserscan.ranges[i] * math.cos(theta)
+
         if i is (bounds[bound % len(bounds)])[0]:
             #print("advancing: " + str((bounds[bound % len(bounds)])[0]))
             color = nonRandomColor(bound)
             slope = getSlope(laserscan, bounds[bound % len(bounds)])
-            bound = bound + 1
-            selected = True
-        else:
-            selected = False
 
+            j = (bounds[bound % len(bounds)])[1]
 
-        #dont know why we need the negative sign...
-        theta = -(laserscan.angle_min + laserscan.angle_increment * i)
-        x = 320 + 300 *laserscan.ranges[i] * math.sin(theta)
+            thetaf = -(laserscan.angle_min + laserscan.angle_increment * j)
+            xf = 320 + 300 *laserscan.ranges[j] * math.sin(thetaf)
+            dx = xf - x
 
-        y = 640 - 300 *laserscan.ranges[i] * math.cos(theta)
-       
-        if selected:
             pygame.draw.circle(window, (255,0,0), (int(x), int(y)), 4, 0)
-            pygame.draw.line(window, color, (int(x), int(y)), (int(x + 100), int(y - 100*slope))) 
+            pygame.draw.line(window, color, (int(x), int(y)), (int(xf ), int(y - dx*slope))) 
+            bound = bound + 1
         else:
+            #dont know why we need the negative sign...
             pygame.draw.circle(window, color, (int(x), int(y)), 1, 0)
+
+
+       
 
 
     pygame.display.flip()
