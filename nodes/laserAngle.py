@@ -259,14 +259,19 @@ def drawVis(laserscan, bounds):
 def getSlope(laserscan, bound):
     tmpx = []
     tmpy = []
-    #x = np.array(bound)
-    for x in range(bound[0], bound[1]):
+
+    for i in range(bound[0], bound[1]):
+        theta = (laserscan.angle_min + laserscan.angle_increment * i)
+        x = laserscan.ranges[i] * math.cos(theta)
+        y = laserscan.ranges[i] * math.sin(theta)
+
         tmpx.append(x)
-        tmpy.append(laserscan.ranges[x])
+        tmpy.append(y)
+
     x = np.array(tmpx)
     A = np.array([x, ones(len(tmpx))])
     y = np.array(tmpy)
-    #print y
+    print y
 
     #slope, intercept, r_value, p_value, std_err =  np.linalg.lstsq(A.T, y)
     w = linalg.lstsq(A.T, y)[0]
