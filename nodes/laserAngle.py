@@ -14,12 +14,15 @@ from geometry_msgs.msg import *
 from sensor_msgs.msg import *
 
 from pyqtgraph.Qt import QtGui, QtCore
+from numpy import arange, array, ones, linalg
 import numpy as np
 import pyqtgraph as pg
 
+from pylab import plot, show
+
 
 INTERSECT_THRESHOLD = .04
-NEIGHBOR_RANGE= 2
+NEIGHBOR_RANGE= 1
 COLORS = {}
 
 def main():
@@ -84,7 +87,7 @@ def scanned(laserscan):
     intersects = getIntersects(errors)
     #print(intersects)
     errorClusters= getClusters(intersects)
-    print errorClusters
+    #print errorClusters
     drawVis(laserscan, errorClusters)
     #print(intersects)
 
@@ -102,8 +105,7 @@ def getClusters(positions):
     #print positions
     for position in positions:
         '''
-        print("pos:" + str(position) + "\t" + "cs" + str(currentClusterStart) 
-                + "\tpp:" + str(previousPos))
+        print("pos:" + str(position) + "\t" + "cs" + str(currentClusterStart) + "\tpp:" + str(previousPos))
         '''
         #if we see that we are continuous,
         #if previousPos + 1 is position:
@@ -221,8 +223,8 @@ def drawVis(laserscan, bounds):
     pygame.draw.rect(window, (0,0,0), (0, 0, 640, 640))
     pygame.draw.circle(window, (255,0,0), (0, 320), 20, 0)
 
-    #if len(bounds) > 1:
-        #getSlope(laserscan, bounds[1])
+    if len(bounds) > 1:
+        getSlope(laserscan, bounds[1])
 
     
     bound = 0 #which bound we are in
@@ -230,32 +232,58 @@ def drawVis(laserscan, bounds):
     #print bounds
     for i in range(0, len(laserscan.ranges)):
         #advance bound if out of bounds
+        selected = False
         if i is (bounds[bound % len(bounds)])[0]:
+            #print("advancing: " + str((bounds[bound % len(bounds)])[0]))
             color = nonRandomColor(bound)
             bound = bound + 1
+            selected = True
+        else:
+            selected = False
+
 
         #dont know why we need the negative sign...
         theta = -(laserscan.angle_min + laserscan.angle_increment * i)
         x = 0 + 300 *laserscan.ranges[i] * math.cos(theta)
 
         y = 320 + 300 *laserscan.ranges[i] * math.sin(theta)
-        
-        pygame.draw.circle(window, color, (int(x), int(y)), 1, 0)
+       
+        if selected:
+            pygame.draw.circle(window, (255,0,0), (int(x), int(y)), 4, 0)
+        else:
+            pygame.draw.circle(window, nonRandomColor(bound), (int(x), int(y)), 1, 0)
 
 
     pygame.display.flip()
 
 def getSlope(laserscan, bound):
     tmpx = []
+    tmpy = []
     #x = np.array(bound)
     for x in range(bound[0], bound[1]):
-        tmpx.append(tmpx)
-    tmpy = []
-    for boundx in bound:
-        tmpy.append(laserscan.ranges[boundx])
-    x = np.array(bound)
+        tmpx.append(x)
+        tmpy.append(laserscan.ranges[x])
+    x = np.array(tmpx)
+    A = np.array([x, ones(len(tmpx))])
     y = np.array(tmpy)
-    print x
+    #print y
+
+    #slope, intercept, r_value, p_value, std_err =  np.linalg.lstsq(A.T, y)
+    w = linalg.lstsq(A.T, y)[0]
+
+    line = w[0]*x + w[1]
+    plot(x, line, 'r-', x,y,'o')
+    show()
+
+    #print 'r value', r_value
+    #print  'p_value', p_value
+    #print 'standard deviation', std_err
+
+    #line = slope*xi+intercept
+    #plot(x,line,'r-',x,y,'o')
+    #show()
+    
+    
 
 
 
@@ -266,9 +294,7 @@ def nonRandomColor(i):
                 random.randint(0,255),
                 random.randint(0,255),
                 random.randint(0,255))
-    return COLORS[i]
-
-
+        return COLORS[i]
 
 
 if __name__ == "__main__":
