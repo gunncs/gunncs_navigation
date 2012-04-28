@@ -221,21 +221,29 @@ def drawVis(laserscan, bounds):
     '''
     global window
     pygame.draw.rect(window, (0,0,0), (0, 0, 640, 640))
-    pygame.draw.circle(window, (255,0,0), (0, 320), 20, 0)
+    pygame.draw.circle(window, (255,0,0), (320, 640), 20, 0)
 
-    if len(bounds) > 1:
-        getSlope(laserscan, bounds[1])
+        
+    for i in range( 0, len(bounds)):
+        print getSlope(laserscan, bounds[i])
+    
+    print "-------------------"
+    
+    
+
+    getSlope(laserscan, bounds[1])
 
     
     bound = 0 #which bound we are in
     color = nonRandomColor(bound) # color for the bound
-    #print bounds
+    slope = -.45
     for i in range(0, len(laserscan.ranges)):
         #advance bound if out of bounds
         selected = False
         if i is (bounds[bound % len(bounds)])[0]:
             #print("advancing: " + str((bounds[bound % len(bounds)])[0]))
             color = nonRandomColor(bound)
+            slope = getSlope(laserscan, bounds[bound % len(bounds)])
             bound = bound + 1
             selected = True
         else:
@@ -244,14 +252,15 @@ def drawVis(laserscan, bounds):
 
         #dont know why we need the negative sign...
         theta = -(laserscan.angle_min + laserscan.angle_increment * i)
-        x = 0 + 300 *laserscan.ranges[i] * math.cos(theta)
+        x = 320 + 300 *laserscan.ranges[i] * math.sin(theta)
 
-        y = 320 + 300 *laserscan.ranges[i] * math.sin(theta)
+        y = 640 - 300 *laserscan.ranges[i] * math.cos(theta)
        
         if selected:
             pygame.draw.circle(window, (255,0,0), (int(x), int(y)), 4, 0)
+            pygame.draw.line(window, color, (int(x), int(y)), (int(x + 100), int(y - 100*slope))) 
         else:
-            pygame.draw.circle(window, nonRandomColor(bound), (int(x), int(y)), 1, 0)
+            pygame.draw.circle(window, color, (int(x), int(y)), 1, 0)
 
 
     pygame.display.flip()
@@ -261,9 +270,9 @@ def getSlope(laserscan, bound):
     tmpy = []
 
     for i in range(bound[0], bound[1]):
-        theta = (laserscan.angle_min + laserscan.angle_increment * i)
-        x = laserscan.ranges[i] * math.cos(theta)
-        y = laserscan.ranges[i] * math.sin(theta)
+        theta = -(laserscan.angle_min + laserscan.angle_increment * i)
+        x = laserscan.ranges[i] * math.sin(theta)
+        y = laserscan.ranges[i] * math.cos(theta)
 
         tmpx.append(x)
         tmpy.append(y)
@@ -271,15 +280,17 @@ def getSlope(laserscan, bound):
     x = np.array(tmpx)
     A = np.array([x, ones(len(tmpx))])
     y = np.array(tmpy)
-    print y
+    #print y
 
     #slope, intercept, r_value, p_value, std_err =  np.linalg.lstsq(A.T, y)
     w = linalg.lstsq(A.T, y)[0]
 
+    '''
     line = w[0]*x + w[1]
     plot(x, line, 'r-', x,y,'o')
     show()
 
+    '''
     #print 'r value', r_value
     #print  'p_value', p_value
     #print 'standard deviation', std_err
@@ -287,6 +298,7 @@ def getSlope(laserscan, bound):
     #line = slope*xi+intercept
     #plot(x,line,'r-',x,y,'o')
     #show()
+    return w[0]
     
     
 
@@ -299,7 +311,7 @@ def nonRandomColor(i):
                 random.randint(0,255),
                 random.randint(0,255),
                 random.randint(0,255))
-        return COLORS[i]
+    return COLORS[i]
 
 
 if __name__ == "__main__":
