@@ -1,0 +1,14 @@
+<stack>
+  <description brief="gunncs_navigation">gunncs_navigation</description>
+  <author>Maintained by Andrew Chen</author>
+  <license>BSD</license>  
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/gunncs_navigation</url>
+  <depend stack="brown_drivers" /> <!-- irobot_create_2_1 -->
+  <depend stack="common_msgs" /> <!-- nav_msgs, geometry_msgs, sensor_msgs, stereo_msgs -->
+  <depend stack="image_common" /> <!-- image_transport -->
+  <depend stack="ros" />
+  <depend stack="ros_comm" /> <!-- std_msgs, rospy, roscpp -->
+  <depend stack="vision_opencv" /> <!-- opencv2, cv_bridge -->
+
+</stack>
