@@ -1,5 +1,5 @@
 <launch>
-    <node name="teleopControl" pkg="gunncs_navigation" type="teleopControl.py" output="screen" />
+    <node name="teleopControl" pkg="gunncs_navigation_node" type="teleopControl.py" output="screen" />
 
     <node name="joy_node" pkg="joy" type="joy_node" output="screen" />
     <node name="driver" pkg="irobot_create_2_1" type="driver.py" output="screen" />

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import roslib; roslib.load_manifest('gunncs_navigation')
+import roslib; roslib.load_manifest('gunncs_navigation_node')
 
 import rospy
 import serial
@@ -68,7 +68,6 @@ def main():
 
     rospy.loginfo("subscribing to laser...")
     rospy.init_node('laserAngle')
-
     rospy.Subscriber("/scan", LaserScan, scanned) 
     app.exec_()
     rospy.spin()
@@ -159,6 +158,7 @@ def deltaR(laserscan, id, neighborRange):
     for i in range(lowerbound, upperbound):
         error += mydistance - laserscan.ranges[i]
 
+    #normalize output
     return math.fabs(error / ((2 * neighborRange) + 1))
         
 
@@ -198,19 +198,7 @@ def getErrorMap(laserscan):
     return errors
 
         #print(str(p1) + "\t" + str(p1[0]))
-def calculateSlope(laserscan, n1, n2):
-    p1 = getLaserPoint(laserscan, n1)
-    p2 = getLaserPoint(laserscan, n2)
-    m = (p2[1] - p1[1]) / (p2[0] - p1[0])
-    return m
-
     
-
-def getLaserPoint(laserscan, n):
-    theta = laserscan.angle_min + laserscan.angle_increment * n
-    x = laserscan.ranges[n] * math.cos(theta)
-    y = laserscan.ranges[n] * math.sin(theta)
-    return (x, y)
 
 def drawVis(laserscan, bounds):
     '''
@@ -223,20 +211,15 @@ def drawVis(laserscan, bounds):
     pygame.draw.rect(window, (0,0,0), (0, 0, 640, 640))
     pygame.draw.circle(window, (255,0,0), (320, 640), 20, 0)
 
-        
-    for i in range( 0, len(bounds)):
-        print getSlope(laserscan, bounds[i])
     
-    print "-------------------"
-    
-    
+    #for i in range( 0, len(bounds)):
+        #print getRegression(laserscan, bounds[i])
+    #print "-------------------"
 
-    getSlope(laserscan, bounds[1])
-
-    
     bound = 0 #which bound we are in
     color = nonRandomColor(bound) # color for the bound
     slope = 0
+    
     for i in range(0, len(laserscan.ranges)):
         #advance bound if out of bounds
         theta = -(laserscan.angle_min + laserscan.angle_increment * i)
@@ -246,7 +229,7 @@ def drawVis(laserscan, bounds):
         if i is (bounds[bound % len(bounds)])[0]:
             #print("advancing: " + str((bounds[bound % len(bounds)])[0]))
             color = nonRandomColor(bound)
-            slope = getSlope(laserscan, bounds[bound % len(bounds)])
+            slope, intercept = getRegression(laserscan, bounds[bound % len(bounds)])
 
             j = (bounds[bound % len(bounds)])[1]
 
@@ -261,30 +244,32 @@ def drawVis(laserscan, bounds):
             #dont know why we need the negative sign...
             pygame.draw.circle(window, color, (int(x), int(y)), 1, 0)
 
-
-       
-
-
     pygame.display.flip()
 
-def getSlope(laserscan, bound):
+def getRegression(laserscan, bound):
+    '''
+    Given a laserscan and relevant bounds, calculates 
+    the cartesian slope of the feature using
+    linear regression
+    '''
     tmpx = []
     tmpy = []
 
     for i in range(bound[0], bound[1]):
+        #calculates cartesian coordinates
         theta = -(laserscan.angle_min + laserscan.angle_increment * i)
         x = laserscan.ranges[i] * math.sin(theta)
         y = laserscan.ranges[i] * math.cos(theta)
 
+        #store coordinates
         tmpx.append(x)
         tmpy.append(y)
 
     x = np.array(tmpx)
     A = np.array([x, ones(len(tmpx))])
     y = np.array(tmpy)
-    #print y
 
-    #slope, intercept, r_value, p_value, std_err =  np.linalg.lstsq(A.T, y)
+    #perform regression
     w = linalg.lstsq(A.T, y)[0]
 
     '''
@@ -300,13 +285,17 @@ def getSlope(laserscan, bound):
     #line = slope*xi+intercept
     #plot(x,line,'r-',x,y,'o')
     #show()
-    return w[0]
+    return w
     
     
 
 
 
 def nonRandomColor(i):
+    '''
+    accessor for persistent but randomly generated colors 
+    given an id
+    '''
     global COLORS
     if i not in COLORS:
         COLORS[i] = (

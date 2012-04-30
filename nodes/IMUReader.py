@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import roslib; roslib.load_manifest('gunncs_navigation')
+import roslib; roslib.load_manifest('gunncs_navigation_node')
 import rospy
 import tf
 
