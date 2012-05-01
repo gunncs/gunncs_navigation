@@ -128,19 +128,20 @@ def getClusters(positions):
 def getIntersects(errors):
     global centersCurve, INTERSECT_THRESHOLD
 
-    positions = []
-    values = []
+    positions = [] 
+    outOfThreshold = [] 
+    #INTERSECT_THRESHOLD if not within threshold, 0 otherwise
     for i in range(0, len(errors)):
         if errors[i] > INTERSECT_THRESHOLD:
             #positions.append(i)
-            values.append(.03)
+            outOfThreshold.append(INTERSECT_THRESHOLD)
         else:
             positions.append(i)
-            values.append(0)
+            outOfThreshold.append(0)
 
     #print(positions)
 
-    centersCurve.setData(np.array(values))
+    centersCurve.setData(np.array(outOfThreshold))
 
     return positions
 
@@ -156,7 +157,8 @@ def deltaR(laserscan, id, neighborRange):
     lowerbound = (id - neighborRange) % len(laserscan.ranges)
     upperbound = (id + neighborRange) % len(laserscan.ranges)
     for i in range(lowerbound, upperbound):
-        error += mydistance - laserscan.ranges[i]
+        #we take an absolute value so errors don't cancel out
+        error += math.fabs(mydistance - laserscan.ranges[i])
 
     #normalize output
     return math.fabs(error / ((2 * neighborRange) + 1))
@@ -216,7 +218,7 @@ def drawVis(laserscan, bounds):
         #print getRegression(laserscan, bounds[i])
     #print "-------------------"
 
-    bound = 0 #which bound we are in
+    currentBound= 0 #which bound we are in
     color = nonRandomColor(bound) # color for the bound
     slope = 0
     
@@ -226,12 +228,12 @@ def drawVis(laserscan, bounds):
         x = 320 + 300 *laserscan.ranges[i] * math.sin(theta)
         y = 640 - 300 *laserscan.ranges[i] * math.cos(theta)
 
-        if i is (bounds[bound % len(bounds)])[0]:
+        if i is (bounds[currentBound % len(bounds)])[0]:
             #print("advancing: " + str((bounds[bound % len(bounds)])[0]))
-            color = nonRandomColor(bound)
-            slope, intercept = getRegression(laserscan, bounds[bound % len(bounds)])
+            color = nonRandomColor(currentBound)
+            slope, intercept = getRegression(laserscan, bounds[currentBound% len(bounds)])
 
-            j = (bounds[bound % len(bounds)])[1]
+            j = (bounds[currentBound % len(bounds)])[1]
 
             thetaf = -(laserscan.angle_min + laserscan.angle_increment * j)
             xf = 320 + 300 *laserscan.ranges[j] * math.sin(thetaf)
@@ -239,14 +241,14 @@ def drawVis(laserscan, bounds):
 
             pygame.draw.circle(window, (255,0,0), (int(x), int(y)), 4, 0)
             pygame.draw.line(window, color, (int(x), int(y)), (int(xf ), int(y - dx*slope))) 
-            bound = bound + 1
+            currentBound = currentBound + 1
         else:
             #dont know why we need the negative sign...
             pygame.draw.circle(window, color, (int(x), int(y)), 1, 0)
 
     pygame.display.flip()
 
-def getRegression(laserscan, bound):
+def getRegression(laserscan, currentBound):
     '''
     Given a laserscan and relevant bounds, calculates 
     the cartesian slope of the feature using
