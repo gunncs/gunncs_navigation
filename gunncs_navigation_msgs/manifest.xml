@@ -1,0 +1,14 @@
+<package>
+  <description brief="gunncs_navigation_msgs">
+
+     gunncs_navigation_msgs
+
+  </description>
+  <author>Andrew Chen</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/gunncs_navigation_msgs</url>
+
+</package>
+
+
