@@ -10,5 +10,6 @@
   <depend stack="ros" />
   <depend stack="ros_comm" /> <!-- std_msgs, rospy, roscpp -->
   <depend stack="vision_opencv" /> <!-- opencv2, cv_bridge -->
+  <depend stack="turtlebot" /> <!-- opencv2, cv_bridge -->
 
 </stack>
