@@ -8,6 +8,9 @@
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/gunncs_navigation_msgs</url>
+  <depend package="std_msgs" />
+  <depend package="nav_msgs" />
+  <depend package="sensor_msgs" />
 
 </package>
 
