@@ -20,6 +20,7 @@
   <depend package="opencv2"/>
   <depend package="stereo_msgs"/>
   <depend package="gunncs_navigation_msgs"/>
+  <depend package="joy"/>
   <msgs>
       msg/Line.msg
       msg/Bound.msg
