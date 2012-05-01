@@ -19,6 +19,7 @@
   <depend package="cv_bridge"/>
   <depend package="opencv2"/>
   <depend package="stereo_msgs"/>
+  <depend package="gunncs_navigation_msgs"/>
   <msgs>
       msg/Line.msg
       msg/Bound.msg
