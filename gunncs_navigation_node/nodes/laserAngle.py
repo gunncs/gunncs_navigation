@@ -21,7 +21,7 @@ import pyqtgraph as pg
 from pylab import plot, show
 
 
-INTERSECT_THRESHOLD = .04
+DELTA_R_THRESHOLD = .04
 NEIGHBOR_RANGE= 1
 COLORS = {}
 
@@ -82,8 +82,12 @@ def scanned(laserscan):
     rangeCurve.setData(np.array(laserscan.ranges))
 
     #draw vis
-    errors = getErrorMap(laserscan)
-    intersects = getIntersects(errors)
+    deltaRs = getDeltaRMap(laserscan)
+    intersects, outOfThreshold  = removeSpikes(deltaR)
+    #graphs which points are not in the threshold
+    centersCurve.setData(np.array(outOfThreshold))
+    #graphs the differences in radii between points
+    errorCurve.setData(np.array(deltaRs))
     #print(intersects)
     errorClusters= getClusters(intersects)
     #print errorClusters
@@ -125,24 +129,27 @@ def getClusters(positions):
 
     return clusters
 
-def getIntersects(errors):
-    global centersCurve, INTERSECT_THRESHOLD
+def removeSpikes(deltaRs):
+    '''
+    returns list of positions that satisfy condition that
+    the deltaRs between consecutive points are not too great,
+    i.e. not above DELTA_R_THRESHOLD,
+    and then returns list of positions that do not satisfy said condition.
+    '''
+    global centersCurve, DELTA_R_THRESHOLD
 
     positions = [] 
     outOfThreshold = [] 
-    #INTERSECT_THRESHOLD if not within threshold, 0 otherwise
-    for i in range(0, len(errors)):
-        if errors[i] > INTERSECT_THRESHOLD:
+    #DELTA_R_THRESHOLD if not within threshold, 0 otherwise
+    for i in range(0, len(deltaRs)):
+        if deltaRs[i] > DELTA_R_THRESHOLD:
             #positions.append(i)
-            outOfThreshold.append(INTERSECT_THRESHOLD)
+            outOfThreshold.append(DELTA_R_THRESHOLD)
         else:
             positions.append(i)
             outOfThreshold.append(0)
 
     #print(positions)
-
-    centersCurve.setData(np.array(outOfThreshold))
-
     return positions
 
 
@@ -154,55 +161,34 @@ def deltaR(laserscan, id, neighborRange):
     '''
     mydistance = laserscan.ranges[id]
     error = 0
-    lowerbound = (id - neighborRange) % len(laserscan.ranges)
-    upperbound = (id + neighborRange) % len(laserscan.ranges)
-    for i in range(lowerbound, upperbound):
-        #we take an absolute value so errors don't cancel out
+    lowercluster = (id - neighborRange) % len(laserscan.ranges)
+    uppercluster = (id + neighborRange) % len(laserscan.ranges)
+    for i in range(lowercluster, uppercluster):
+        #we take an absolute value so deltaRs don't cancel out
         error += math.fabs(mydistance - laserscan.ranges[i])
 
     #normalize output
     return math.fabs(error / ((2 * neighborRange) + 1))
         
 
-def filter(laserscan):
-    global NEIGHBOR_RANGE
-    corrections = list()
-    ranges = list()
-    for i in range(0, len(laserscan.ranges)-1):
-        ranges.append(laserscan.ranges[i])
-        error = deltaR(laserscan, i, NEIGHBOR_RANGE)
-        if error > .04:
-            #toadd = [i, laserscan.ranges[i + 1)]
-            corrections.append((i, laserscan.ranges[i+1]))
-            #corrections.append(toadd)
         
-
-
-    for i in range(0, len(corrections) ):
-        #laserscan.ranges[(corrections[i])[0]] = (corrections[i])[1]
-        ranges.pop((corrections[i])[0])
-        ranges.insert(i, (corrections[i])[1])
-    
-
-    laserscan.ranges = ranges;
-    return laserscan
-
-        
-def getErrorMap(laserscan):
+def getDeltaRMap(laserscan):
+    '''
+    Takes a laserscan, and returns the differences in radii between consecutive points
+    ''' 
     #print laserscan
     global errorCurve, NEIGHBOR_RANGE
     #print(calculateSlope(laserscan, 200, 210))
-    errors= []
+    deltaRs= []
     for i in range(0, len(laserscan.ranges)):
-        errors.append(deltaR(laserscan, i, NEIGHBOR_RANGE))
+        deltaRs.append(deltaR(laserscan, i, NEIGHBOR_RANGE))
 
-    errorCurve.setData(np.array(errors))
-    return errors
+    return deltaRs
 
         #print(str(p1) + "\t" + str(p1[0]))
     
 
-def drawVis(laserscan, bounds):
+def drawVis(laserscan, clusters):
     '''
     Draws the laserscan 
     currently the points are colorized according to 
@@ -214,26 +200,26 @@ def drawVis(laserscan, bounds):
     pygame.draw.circle(window, (255,0,0), (320, 640), 20, 0)
 
     
-    #for i in range( 0, len(bounds)):
-        #print getRegression(laserscan, bounds[i])
+    #for i in range( 0, len(clusters)):
+        #print getRegression(laserscan, clusters[i])
     #print "-------------------"
 
-    currentBound= 0 #which bound we are in
-    color = nonRandomColor(currentBound) # color for the bound
+    currentCluster= 0 #which cluster we are in
+    color = nonRandomColor(currentCluster) # color for the cluster
     slope = 0
     
     for i in range(0, len(laserscan.ranges)):
-        #advance bound if out of bounds
+        #advance cluster if out of clusters
         theta = -(laserscan.angle_min + laserscan.angle_increment * i)
         x = 320 + 300 *laserscan.ranges[i] * math.sin(theta)
         y = 640 - 300 *laserscan.ranges[i] * math.cos(theta)
 
-        if i is (bounds[currentBound % len(bounds)])[0]:
-            #print("advancing: " + str((bounds[bound % len(bounds)])[0]))
-            color = nonRandomColor(currentBound)
-            slope, intercept = getRegression(laserscan, bounds[currentBound% len(bounds)])
+        if i is (clusters[currentCluster % len(clusters)])[0]:
+            #print("advancing: " + str((clusters[cluster % len(bounds)])[0]))
+            color = nonRandomColor(currentCluster)
+            slope, intercept = getRegression(laserscan, clusters[currentCluster% len(clusters)])
 
-            j = (bounds[currentBound % len(bounds)])[1]
+            j = (clusters[currentCluster % len(clusters)])[1]
 
             thetaf = -(laserscan.angle_min + laserscan.angle_increment * j)
             xf = 320 + 300 *laserscan.ranges[j] * math.sin(thetaf)
@@ -241,23 +227,23 @@ def drawVis(laserscan, bounds):
 
             pygame.draw.circle(window, (255,0,0), (int(x), int(y)), 4, 0)
             pygame.draw.line(window, color, (int(x), int(y)), (int(xf ), int(y - dx*slope))) 
-            currentBound = currentBound + 1
+            currentCluster = currentCluster + 1
         else:
             #dont know why we need the negative sign...
             pygame.draw.circle(window, color, (int(x), int(y)), 1, 0)
 
     pygame.display.flip()
 
-def getRegression(laserscan, bound):
+def getRegression(laserscan, cluster):
     '''
-    Given a laserscan and relevant bounds, calculates 
+    Given a laserscan and relevant clusters, calculates 
     the cartesian slope of the feature using
     linear regression
     '''
     tmpx = []
     tmpy = []
 
-    for i in range(bound[0], bound[1]):
+    for i in range(cluster[0], cluster[1]):
         #calculates cartesian coordinates
         theta = -(laserscan.angle_min + laserscan.angle_increment * i)
         x = laserscan.ranges[i] * math.sin(theta)
