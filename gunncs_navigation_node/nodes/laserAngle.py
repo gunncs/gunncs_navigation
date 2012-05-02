@@ -83,7 +83,11 @@ def scanned(laserscan):
 
     #draw vis
     deltaRs = getDeltaRMap(laserscan)
-    intersects = removeSpikes(deltaRs)
+    intersects, outOfThreshold  = removeSpikes(deltaR)
+    #graphs which points are not in the threshold
+    centersCurve.setData(np.array(outOfThreshold))
+    #graphs the differences in radii between points
+    errorCurve.setData(np.array(deltaRs))
     #print(intersects)
     errorClusters= getClusters(intersects)
     #print errorClusters
@@ -129,7 +133,8 @@ def removeSpikes(deltaRs):
     '''
     returns list of positions that satisfy condition that
     the deltaRs between consecutive points are not too great,
-    i.e. not above DELTA_R_THRESHOLD
+    i.e. not above DELTA_R_THRESHOLD,
+    and then returns list of positions that do not satisfy said condition.
     '''
     global centersCurve, DELTA_R_THRESHOLD
 
@@ -145,9 +150,6 @@ def removeSpikes(deltaRs):
             outOfThreshold.append(0)
 
     #print(positions)
-
-    centersCurve.setData(np.array(outOfThreshold))
-
     return positions
 
 
@@ -181,7 +183,6 @@ def getDeltaRMap(laserscan):
     for i in range(0, len(laserscan.ranges)):
         deltaRs.append(deltaR(laserscan, i, NEIGHBOR_RANGE))
 
-    errorCurve.setData(np.array(deltaRs))
     return deltaRs
 
         #print(str(p1) + "\t" + str(p1[0]))
