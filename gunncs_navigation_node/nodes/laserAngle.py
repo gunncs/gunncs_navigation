@@ -219,7 +219,7 @@ def drawVis(laserscan, bounds):
     #print "-------------------"
 
     currentBound= 0 #which bound we are in
-    color = nonRandomColor(bound) # color for the bound
+    color = nonRandomColor(currentBound) # color for the bound
     slope = 0
     
     for i in range(0, len(laserscan.ranges)):
@@ -248,7 +248,7 @@ def drawVis(laserscan, bounds):
 
     pygame.display.flip()
 
-def getRegression(laserscan, currentBound):
+def getRegression(laserscan, bound):
     '''
     Given a laserscan and relevant bounds, calculates 
     the cartesian slope of the feature using
