@@ -2,7 +2,5 @@
 
 sensor_msgs/LaserScan laserscan         # original laserscan
 
-Bound[] regression_bounds
-Line[] regressions
-
+Feature[] features
 
