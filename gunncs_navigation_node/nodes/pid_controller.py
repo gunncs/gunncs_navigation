@@ -34,7 +34,7 @@ class PIDController:
     def setIMax(self, maxITerm):
         self.maxITerm = maxITerm
 
-    def update(self, current, target, timeMS):
+    def update(self, current, target):
         global MS_TO_SECONDS
         
         time = rospy.get_time()

@@ -37,7 +37,7 @@ def scanned(data):
     global pid, SETPOINT
     distance = getDistance(data)
 
-    pid.update(distance, SETPOINT, 50)
+    pid.update(distance, SETPOINT)
     command(pid.getResult())
     
     
