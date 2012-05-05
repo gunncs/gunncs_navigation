@@ -113,6 +113,7 @@ def main():
         imu_msg.orientation_covariance = ORIENTATION_COVARIANCE;
         imu_msg.angular_velocity_covariance = ANGULAR_VELOCITY_COVARIANCE;
         imu_msg.linear_acceleration_covariance = ACCELERATION_COVARIANCE
+        pub.publish(imu_msg)
 
         '''
         pubwx.publish(Float64(gyroX))
