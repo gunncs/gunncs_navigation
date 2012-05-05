@@ -1,12 +1,9 @@
 <launch>
-    <include file="$(find grt_ai)/ekf.launch" />
 
 
-  <node pkg="odom_node_pkg" type="odom_node_type" name="odom_node" output="screen">
-    <param name="odom_param" value="param_value" />
-  </node>
+    <include file="$(find gunncs_navigation_2dnav)/launch/kinect.launch" />
+    <include file="$(find gunncs_navigation_description)/launch/os_mobile_base.launch" />
+    <node name="driver" pkg="irobot_create_2_1" type="driver.py" output="screen" />
 
-  <node pkg="transform_configuration_pkg" type="transform_configuration_type" name="transform_configuration_name" output="screen">
-    <param name="transform_configuration_param" value="param_value" />
   </node>
 </launch>
