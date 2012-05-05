@@ -12,6 +12,7 @@ import time
 from std_msgs.msg import *
 from geometry_msgs.msg import *
 from sensor_msgs.msg import *
+from gunncs_navigation_msgs.msg import *
 
 from pyqtgraph.Qt import QtGui, QtCore
 from numpy import arange, array, ones, linalg
@@ -30,15 +31,16 @@ def main():
     #global window, win, plot, rangeCurve
     #open plotter
     rospy.loginfo("starting plotter...")
+    pub = rospy.Publisher("/featured_scan", FeaturedLaserScan)
 
 
-    ''' 
+    '''
     PLOTS
     '''
 
     global rangeCurve, errorCurve, centersCurve
     app = QtGui.QApplication([])
-    
+
     win = pg.GraphicsWindow(title="Basic plotting examples")
     win.resize(800,600)
 
@@ -68,7 +70,7 @@ def main():
 
     rospy.loginfo("subscribing to laser...")
     rospy.init_node('laserAngle')
-    rospy.Subscriber("/scan", LaserScan, scanned) 
+    rospy.Subscriber("/scan", LaserScan, scanned)
     app.exec_()
     rospy.spin()
 
@@ -83,16 +85,43 @@ def scanned(laserscan):
 
     #draw vis
     deltaRs = getDeltaRMap(laserscan)
-    intersects, outOfThreshold  = removeSpikes(deltaR)
+    inThreshold, outOfThreshold  = removeSpikes(deltaR)
     #graphs which points are not in the threshold
     centersCurve.setData(np.array(outOfThreshold))
     #graphs the differences in radii between points
     errorCurve.setData(np.array(deltaRs))
-    #print(intersects)
-    errorClusters= getClusters(intersects)
+    #print(inThreshold)
+    errorClusters= getClusters(inThreshold)
     #print errorClusters
     drawVis(laserscan, errorClusters)
-    #print(intersects)
+    #print(inThreshold)
+    publishData(laserScan, errorClusters)
+
+def publishData(laserScan, clusters):
+
+    featuredLaserScan = FeaturedLaserScan()
+
+    #for each feature:
+    for cluster in clusters:
+
+        #Message with the bounds of the feature
+        bound = Bound()
+        bound.lower, bound.upper = cluster
+
+        #Message w/ line parameters
+        line = Line()
+        regression = getRegression(laserscan, cluster)
+        line.slope, line.y_intercept = regression
+
+        #Merge bound and line messages into one feature message
+        feature = Feature()
+        feature.bound = bound
+        feature.regression = line
+
+        #Add feature message to list of features
+        featuredLaserScan.features.append(feature)
+    rospy.log(featuredLaserScan)
+    pub.publish(featuredLaserScan)
 
 def getClusters(positions):
     '''
@@ -122,7 +151,7 @@ def getClusters(positions):
             clusters.append([currentClusterStart , previousPos])
             # and reset
             currentClusterStart = -1
-                
+
         previousPos = position
     #add the last cluster set, that isn't iterated
     clusters.append([currentClusterStart , previousPos])
@@ -138,8 +167,8 @@ def removeSpikes(deltaRs):
     '''
     global centersCurve, DELTA_R_THRESHOLD
 
-    positions = [] 
-    outOfThreshold = [] 
+    positions = []
+    outOfThreshold = []
     #DELTA_R_THRESHOLD if not within threshold, 0 otherwise
     for i in range(0, len(deltaRs)):
         if deltaRs[i] > DELTA_R_THRESHOLD:
@@ -169,13 +198,13 @@ def deltaR(laserscan, id, neighborRange):
 
     #normalize output
     return math.fabs(error / ((2 * neighborRange) + 1))
-        
 
-        
+
+
 def getDeltaRMap(laserscan):
     '''
     Takes a laserscan, and returns the differences in radii between consecutive points
-    ''' 
+    '''
     #print laserscan
     global errorCurve, NEIGHBOR_RANGE
     #print(calculateSlope(laserscan, 200, 210))
@@ -186,12 +215,12 @@ def getDeltaRMap(laserscan):
     return deltaRs
 
         #print(str(p1) + "\t" + str(p1[0]))
-    
+
 
 def drawVis(laserscan, clusters):
     '''
-    Draws the laserscan 
-    currently the points are colorized according to 
+    Draws the laserscan
+    currently the points are colorized according to
     the clusters identified.
 
     '''
@@ -199,7 +228,7 @@ def drawVis(laserscan, clusters):
     pygame.draw.rect(window, (0,0,0), (0, 0, 640, 640))
     pygame.draw.circle(window, (255,0,0), (320, 640), 20, 0)
 
-    
+
     #for i in range( 0, len(clusters)):
         #print getRegression(laserscan, clusters[i])
     #print "-------------------"
@@ -207,7 +236,7 @@ def drawVis(laserscan, clusters):
     currentCluster= 0 #which cluster we are in
     color = nonRandomColor(currentCluster) # color for the cluster
     slope = 0
-    
+
     for i in range(0, len(laserscan.ranges)):
         #advance cluster if out of clusters
         theta = -(laserscan.angle_min + laserscan.angle_increment * i)
@@ -226,7 +255,7 @@ def drawVis(laserscan, clusters):
             dx = xf - x
 
             pygame.draw.circle(window, (255,0,0), (int(x), int(y)), 4, 0)
-            pygame.draw.line(window, color, (int(x), int(y)), (int(xf ), int(y - dx*slope))) 
+            pygame.draw.line(window, color, (int(x), int(y)), (int(xf ), int(y - dx*slope)))
             currentCluster = currentCluster + 1
         else:
             #dont know why we need the negative sign...
@@ -236,7 +265,7 @@ def drawVis(laserscan, clusters):
 
 def getRegression(laserscan, cluster):
     '''
-    Given a laserscan and relevant clusters, calculates 
+    Given a laserscan and relevant clusters, calculates
     the cartesian slope of the feature using
     linear regression
     '''
@@ -274,14 +303,14 @@ def getRegression(laserscan, cluster):
     #plot(x,line,'r-',x,y,'o')
     #show()
     return w
-    
-    
+
+
 
 
 
 def nonRandomColor(i):
     '''
-    accessor for persistent but randomly generated colors 
+    accessor for persistent but randomly generated colors
     given an id
     '''
     global COLORS
