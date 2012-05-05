@@ -2,10 +2,7 @@
     <node name="teleopControl" pkg="gunncs_navigation_node" type="teleopControl.py" output="screen" />
 
     <node name="joy_node" pkg="joy" type="joy_node" output="screen" />
-    <node name="turtlebot_node" pkg="turtlebot_node" type="turtlebot_node.py" output="screen" >
-        <param name="base_frame" value="base_link" />
-        <param name="publish_tf" value="True" />
-    </node>
+    <include file="$(find gunncs_navigation_2dnav)/launch/drive.launch" />
 
 </launch>
 

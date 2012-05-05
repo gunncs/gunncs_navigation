@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <robot name="old-subdivision">
-    <link name="base_link">
+    <link name="base_footprint">
         <visual>
             <origin xyz="0 0 0.0375" />
             <geometry>
@@ -9,12 +9,12 @@
         </visual>
     </link>
 
-    <link name="base_footprint"/>
+    <link name="base_link"/>
 
 
     <joint name="base_to_right_leg" type="fixed">
-        <parent link="base_link"/>
-        <child link="base_footprint"/>
+        <parent link="base_footprint"/>
+        <child link="base_link"/>
         <origin xyz="0 0 -0.055"/>
     </joint>
 
@@ -40,13 +40,13 @@
     </visual>
     </link>
 <joint name="base_to_imu" type="fixed">
-    <parent link="base_link"/>
+    <parent link="base_footprint"/>
     <child link="imu_link"/>
     <origin xyz="0 0 .075"/>
 </joint>
 
 <joint name="base_to_camera" type="fixed">
-    <parent link="base_link"/>
+    <parent link="base_footprint"/>
     <child link="camera_link"/>
     <origin xyz="0.09 0 0.075"/>
 </joint>

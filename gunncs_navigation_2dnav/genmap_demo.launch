@@ -1,0 +1,18 @@
+<launch>
+
+    <include file="$(find gunncs_navigation_2dnav)/launch/kinect.launch" />
+    <include file="$(find gunncs_navigation_description)/launch/os_mobile_base.launch" />
+    <include file="$(find gunncs_navigation_2dnav)/launch/ekf.launch" />
+    <include file="$(find gunncs_navigation_2dnav)/launch/drive.launch" />
+    <node name="teleopControl" pkg="gunncs_navigation_node" type="teleopControl.py"      output="screen" />
+
+    <node name="joy_node" pkg="joy" type="joy_node" output="screen" />
+    <node name="slam_gmapping" pkg="gmapping" type="slam_gmapping" output="screen" >
+        <param name="scan" value="/scan" />
+        <param name="odom_frame" value="/odom_combined" />
+    </node>
+
+
+
+
+</launch>
