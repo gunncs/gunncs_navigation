@@ -1,0 +1,18 @@
+<package>
+  <description brief="gunncs_navigation_2dnav">
+
+     gunncs_navigation_2dnav
+
+  </description>
+  <author>Andrew Chen</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/gunncs_navigation_2dnav</url>
+  <depend package="move_base"/>
+  <depend package="gunncs_navigation_description"/>
+  <depend package="gunncs_navigation_node"/>
+  <depend package="gmapping"/>
+
+</package>
+
+
