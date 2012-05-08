@@ -30,7 +30,7 @@ def main():
     rospy.loginfo("starting laserAngle")
     #global window, win, plot, rangeCurve
     #open plotter
-    rospy.loginfo("starting plotter...")
+    ''rospy.loginfo("starting plotter...")
     pub = rospy.Publisher("/featured_scan", FeaturedLaserScan)
 
 
@@ -93,7 +93,7 @@ def scanned(laserscan):
     #print(inThreshold)
     errorClusters= getClusters(inThreshold)
     #print errorClusters
-    drawVis(laserscan, errorClusters)
+    #drawVis(laserscan, errorClusters)
     #print(inThreshold)
     publishData(laserScan, errorClusters)
 
@@ -128,6 +128,7 @@ def getClusters(positions):
     given a list of points, points are clustered.
     we return the positions of the centers of these clusters.
     '''
+
 
     clusters= [] #to return
     currentClusterStart = -1 #we start without a cluster
@@ -216,14 +217,8 @@ def getDeltaRMap(laserscan):
 
         #print(str(p1) + "\t" + str(p1[0]))
 
-
+'''
 def drawVis(laserscan, clusters):
-    '''
-    Draws the laserscan
-    currently the points are colorized according to
-    the clusters identified.
-
-    '''
     global window
     pygame.draw.rect(window, (0,0,0), (0, 0, 640, 640))
     pygame.draw.circle(window, (255,0,0), (320, 640), 20, 0)
@@ -262,6 +257,7 @@ def drawVis(laserscan, clusters):
             pygame.draw.circle(window, color, (int(x), int(y)), 1, 0)
 
     pygame.display.flip()
+'''
 
 def getRegression(laserscan, cluster):
     '''
@@ -306,13 +302,8 @@ def getRegression(laserscan, cluster):
 
 
 
-
-
+'
 def nonRandomColor(i):
-    '''
-    accessor for persistent but randomly generated colors
-    given an id
-    '''
     global COLORS
     if i not in COLORS:
         COLORS[i] = (
@@ -320,6 +311,7 @@ def nonRandomColor(i):
                 random.randint(0,255),
                 random.randint(0,255))
     return COLORS[i]
+'
 
 
 if __name__ == "__main__":
