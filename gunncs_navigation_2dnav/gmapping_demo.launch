@@ -1,12 +1,12 @@
 <launch>
 
   <!--- Run the kinect -->
-  <include file="$(find turtlebot_bringup)/kinect.launch" />
+  <include file="$(find gunncs_navigation_2dnav)/launch/kinect.launch" />
 
   <!--- Run gmapping -->
-  <include file="$(find turtlebot_navigation)/config/gmapping_turtlebot.launch" />
+  <include file="$(find gunncs_navigation_2dnav)/config/gmapping_turtlebot.launch" />
 
   <!--- Run Move Base -->
-  <include file="$(find turtlebot_navigation)/config/move_base_turtlebot.launch" />
+  <include file="$(find gunncs_navigation_2dnav)/config/move_base_turtlebot.launch" />
 
 </launch>
