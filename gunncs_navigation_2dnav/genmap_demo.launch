@@ -5,6 +5,8 @@
     <!--
     <include file="$(find gunncs_navigation_2dnav)/launch/ekf.launch" />
     -->
+    <include file="$(find gunncs_navigation_2dnav)/launch/ekf.launch" />
+
     <include file="$(find gunncs_navigation_2dnav)/launch/drive.launch" />
     <node name="teleopControl" pkg="gunncs_navigation_node" type="teleopControl.py"      output="screen" />
 
@@ -13,9 +15,9 @@
         <param name="scan" value="/scan" />
 
         <!-- for ekf
-        <param name="odom_frame" value="/odom_combined" />
-        -->
         <param name="odom_frame" value="/odom" />
+        -->
+        <param name="odom_frame" value="/odom_combined" />
     </node>
 
 

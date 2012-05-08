@@ -5,9 +5,9 @@
     <node name="turtlebot_node" pkg="turtlebot_node" type="turtlebot_node.py" output="screen" >
 
         <!-- for ekf
-        <param name="base_frame" value="base_link_raw" />
-        -->
         <param name="base_frame" value="base_footprint" />
+        -->
+        <param name="base_frame" value="base_link_raw" />
         <param name="publish_tf" value="True" />
         <param name="has_gyro" value="False" />
         <param name="stop_motors_on_bump" value="True" />
