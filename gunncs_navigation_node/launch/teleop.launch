@@ -1,8 +1,6 @@
 <launch>
     <node name="teleopControl" pkg="gunncs_navigation_node" type="teleopControl.py" output="screen" />
-
     <node name="joy_node" pkg="joy" type="joy_node" output="screen" />
-    <include file="$(find gunncs_navigation_2dnav)/launch/drive.launch" />
 
 </launch>
 
