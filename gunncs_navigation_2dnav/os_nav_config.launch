@@ -1,8 +1,6 @@
 <launch>
 
-	<!--
     <include file="$(find gunncs_navigation_2dnav)/launch/kinect.launch" />
-	-->
     <include file="$(find gunncs_navigation_2dnav)/launch/drive.launch" />
     <include file="$(find gunncs_navigation_description)/launch/os_mobile_base.launch" />
     <include file="$(find gunncs_navigation_2dnav)/launch/ekf.launch" />

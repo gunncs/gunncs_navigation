@@ -1,10 +1,10 @@
 <launch>
 
-  <!--- Run the kinect -->
-  <include file="$(find gunncs_navigation_2dnav)/launch/kinect.launch" />
+  <!--- Run the robot-->
+  <include file="$(find gunncs_navigation_2dnav)/os_nav_config.launch" />
 
   <!-- Run the map server -->
-  <arg name="map_file" default="$(find gunncs_navigation_2dnav)/maps/cubicle.yaml"/>
+  <arg name="map_file" default="$(find gunncs_navigation_2dnav)/maps/andrews_livingroom.yaml"/>
   <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" />
 
   <!--- Run AMCL -->

@@ -1,7 +1,7 @@
 <launch>
 
-  <!--- Run the kinect -->
-  <include file="$(find gunncs_navigation_2dnav)/launch/kinect.launch" />
+  <!--- Run the Robot-->
+  <include file="$(find gunncs_navigation_2dnav)/os_nav_config.launch" />
 
   <!--- Run gmapping -->
   <include file="$(find gunncs_navigation_2dnav)/config/gmapping_turtlebot.launch" />
