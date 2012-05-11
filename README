@@ -1,4 +1,9 @@
-gunncs_navigation is a ROS stack for maze navigation.
+gunncs_navigation is a ROS stack for maze navigation, specifically for the iARoC competition.
+
+The project is foremost a highly specific application of robotic maze navigation. Using and hopefully extending ROS's Navigation stack, we hope to explore revisiting a common robotic application with new high level techniques offered by ROS. We plan to proceed through incremental complexity, first beginning with a kinect fake laserscan for perception before experimenting with ways to advantage the full features of our hardware and ROS. The competition this is developed for
+includes 2 games-- one a typical map-then-solve 'single player' maze, and the second a free-for-all, unmapped obstacle course to certain beacons. The latter, the "gold rush" introduces interesting AI problems as well as the aspect of having no time to map the course in advance.
+
+
 
 See our page at http://gunncs.github.com/gunncs_navigation/
 
