@@ -25,10 +25,22 @@
 #include <stdio.h>
 #include <iterator>
 
+
+#include <iostream>
+#include <pcl/console/parse.h>
+#include <pcl/filters/extract_indices.h>
+#include <pcl/io/pcd_io.h>
+#include <pcl/point_types.h>
+#include <pcl/sample_consensus/ransac.h>
+#include <pcl/sample_consensus/sac_model_plane.h>
+#include <pcl/sample_consensus/sac_model_sphere.h>
+#include <pcl/visualization/pcl_visualizer.h>
+#include <boost/thread/thread.hpp>
+
 using namespace std;
 
 //Typedefs
-typedef pcl::PointXYZRGB PointT;
+typedef pcl::PointXYZ PointT;
 typedef pcl::PointCloud<PointT> CloudT;
 
 CloudT cloudFull;
@@ -63,7 +75,7 @@ void CloudCallback (const sensor_msgs::PointCloud2ConstPtr& cloud)
         point.x = x;
         point.y = y;
         point.z = z;
-        point.rgb = it->rgb;
+        //point.rgb = it->rgb;
 
         rotatedCloud.push_back(point);
     }
@@ -89,6 +101,7 @@ void CloudCallback (const sensor_msgs::PointCloud2ConstPtr& cloud)
 
 
 }
+
 
 int main (int argc, char** argv)
 {
