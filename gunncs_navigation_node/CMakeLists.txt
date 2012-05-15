@@ -31,7 +31,7 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 
 rosbuild_add_executable(distanceDiag src/distanceDiag.cpp)
 #rosbuild_add_executable(cannyGroundDetect src/cannyGroundDetect.cpp)
-#rosbuild_add_executable(pclGroundDetect src/pclGroundDetect.cpp)
+rosbuild_add_executable(pclGroundDetect src/pclGroundDetect.cpp)
 #rosbuild_add_executable(ransac src/ransac.cpp)
 
 
