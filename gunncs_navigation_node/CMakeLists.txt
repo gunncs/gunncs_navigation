@@ -37,12 +37,14 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 #rosbuild_add_executable(example examples/example.cpp)
 #target_link_libraries(example ${PROJECT_NAME})
 
-rosbuild_add_executable(distanceDiag src/distanceDiag.cpp)
+#rosbuild_add_executable(distanceDiag src/distanceDiag.cpp)
 #rosbuild_add_executable(cannyGroundDetect src/cannyGroundDetect.cpp)
-#rosbuild_add_executable(pclGroundDetect src/pclGroundDetect.cpp)
+rosbuild_add_executable(pclDemo src/pclDemo.cpp)
 rosbuild_add_executable(pclGroundDetect src/pclGroundDetect.cpp)
 rosbuild_add_executable(ransac src/ransac.cpp)
 # needed on ubuntu 12.04
 target_link_libraries(ransac libvtkCommon.so libvtkFiltering.so )
+target_link_libraries(pclGroundDetect libvtkCommon.so libvtkFiltering.so )
+target_link_libraries(pclDemo libvtkCommon.so libvtkFiltering.so )
 
 

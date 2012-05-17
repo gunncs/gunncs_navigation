@@ -43,6 +43,8 @@ using namespace std;
 typedef pcl::PointXYZ PointT;
 typedef pcl::PointCloud<PointT> CloudT;
 
+CloudT cloudFull;
+CloudT::Ptr cloudPtr;
 
 ros::Publisher rotatedCloudPub; 
 
@@ -59,15 +61,12 @@ void CloudCallback (const sensor_msgs::PointCloud2ConstPtr& cloud)
 
 
     CloudT rotatedCloud;
-    CloudT cloudFull;
 
     pcl::fromROSMsg(*cloud, cloudFull);
 
-    //CloudT::Ptr cloudptr = cloudFull.makeShared();
-    //CloudT::Ptr floor (new CloudT);
 
-
-    for (CloudT::const_iterator it = cloudFull.begin(); it != cloudFull.end(); ++it){
+    for (CloudT::const_iterator it = cloudFull.begin(); it != cloudFull.end(); ++it)
+    {
         // Rotate about the x-axis to align floor with xz-plane
         float x = it->x;
         float y = (it->y)*cosTheta - (it->z)*sinTheta;
@@ -98,8 +97,11 @@ void CloudCallback (const sensor_msgs::PointCloud2ConstPtr& cloud)
 
     rotatedCloudMsg.header.frame_id = "/camera_rgb_optical_frame";
     rotatedCloudMsg.header.stamp = ros::Time::now();
-
     rotatedCloudPub.publish(rotatedCloudMsg);
+
+
+    // PCL visualization
+    cloudPtr = CloudT::Ptr(&rotatedCloud);
 
 
 }
@@ -111,7 +113,29 @@ int main (int argc, char** argv)
     ros::NodeHandle nh;
     ros::Subscriber kinectSub = nh.subscribe("/camera/rgb/points", 1, CloudCallback);
     rotatedCloudPub = nh.advertise<sensor_msgs::PointCloud2>("rotated_cloud", 1);
-    ros::spin();
+
+    // --------------------------------------------
+    // -----Open 3D viewer and add point cloud-----
+    // --------------------------------------------
+
+    //CloudT::Ptr cloud (new CloudT);
+    cloudPtr = CloudT::Ptr (new CloudT);
+    boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
+    viewer->setBackgroundColor (0, 0, 0);
+    viewer->addPointCloud<PointT> (cloudPtr, "sample cloud");
+    viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 3, "sample cloud");
+    viewer->addCoordinateSystem (1.0);
+    viewer->initCameraParameters ();
+
+
+
+
+    while (nh.ok()){
+        ros::spinOnce();
+        viewer->spinOnce(100);
+        ros::Duration(0.1).sleep();
+
+    }
 
     return 0;
 }
