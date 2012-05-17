@@ -10,7 +10,9 @@
   <url>http://ros.org/wiki/gunncs_navigation</url>
   <depend package="rospy"/>
   <depend package="roscpp"/>
+    <!--
   <depend package="irobot_create_2_1"/>
+    -->
   <depend package="gunncs_navigation_msgs"/>
   <depend package="sensor_msgs"/>
   <depend package="geometry_msgs"/>

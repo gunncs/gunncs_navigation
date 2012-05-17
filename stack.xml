@@ -4,7 +4,9 @@
   <license>BSD</license>  
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/gunncs_navigation</url>
-  <depend stack="brown_drivers" /> <!-- irobot_create_2_1 -->
+    <!--
+  <depend stack="brown_drivers" /> irobot_create_2_1
+    -->
   <depend stack="common_msgs" /> <!-- nav_msgs, geometry_msgs, sensor_msgs, stereo_msgs -->
   <depend stack="image_common" /> <!-- image_transport -->
   <depend stack="ros" />
