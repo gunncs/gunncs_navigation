@@ -54,8 +54,16 @@
 #include "pcl/sample_consensus/model_types.h"
 #include "pcl/segmentation/sac_segmentation.h"
 
+//extraction
 #include "pcl/filters/voxel_grid.h"
 #include "pcl/filters/extract_indices.h"
+
+//convex hull
+#include "pcl/filters/project_inliers.h"
+#include "pcl/surface/convex_hull.h"
+
+//passthrough filter
+#include "pcl/filters/passthrough.h"
 
 
 #include <iostream>
@@ -103,7 +111,6 @@ int main (int argc, char** argv) {
     ros::Subscriber sub = nh.subscribe ("/cloud_throttled", queue_size, cloud_cb);
 
     pcl_visualization::PCLVisualizer vis_orig(argc, argv, "Original");
-    CloudT cloud_xyz;
     ColorHandlerPtr color_handler;
 
     double psize = 0;
@@ -123,12 +130,13 @@ int main (int argc, char** argv) {
 
         // Save the last point size used
         vis_orig.getPointCloudRenderingProperties (pcl_visualization::PCL_VISUALIZER_POINT_SIZE, psize, "cloud_original");
-
         vis_orig.removePointCloud ("cloud_original");
 
-        vis_orig.getPointCloudRenderingProperties (pcl_visualization::PCL_VISUALIZER_POINT_SIZE, psize, "filtered");
+        vis_orig.getPointCloudRenderingProperties (pcl_visualization::PCL_VISUALIZER_POINT_SIZE, psize, "psegment");
+        vis_orig.removePointCloud ("psegment");
 
-        vis_orig.removePointCloud ("filtered");
+        vis_orig.getPointCloudRenderingProperties (pcl_visualization::PCL_VISUALIZER_POINT_SIZE, psize, "hull");
+        vis_orig.removePointCloud ("hull");
         // Convert to PointCloud<T>
         m.lock ();
 
@@ -137,18 +145,42 @@ int main (int argc, char** argv) {
          *****************
          */
         {
+            CloudT cloud_raw;
             //(const sensor_msgs::PointCloud2 &msg, pcl::PointCloud< PointT > &cloud)
-            pcl::fromROSMsg (*cloud_, cloud_xyz);
+            pcl::fromROSMsg (*cloud_, cloud_raw);
+
+            CloudT::Ptr cloud_original (new CloudT(cloud_raw));
+            CloudT::Ptr cloud_filtered (new CloudT(cloud_raw));
+            CloudT::Ptr cloud_psegment (new CloudT());
+            CloudT::Ptr cloud_projected (new CloudT());
+            CloudT::Ptr cloud_hull (new CloudT());
+
+            /*
+             * PASSTHROUGH FILTER-- remove NaNs
+             */
+
+            /*
+            pcl::PassThrough<Point> pass;
+            pass.setInputCloud (cloud_original);
+            pass.setFilterFieldName ("z");
+            pass.setFilterLimits(0, 1.1);
+            pass.filter(*cloud_filtered);
+
+            */
 
 
             /*
-             * VISUALIZING ORIGINAL
+             * DOWNSAMPLE WITH VOXEL FILTER
              */
 
-            
+
+            /*
+             * VISUALIZING FILTERED
+             */
+
             pcl_visualization::PointCloudColorHandlerCustom<Point> white_color_handler 
-                (cloud_xyz, 255, 255, 255);
-            vis_orig.addPointCloud (cloud_xyz, white_color_handler, "cloud_original");
+                (*cloud_filtered, 255, 255, 255);
+            vis_orig.addPointCloud (*cloud_filtered, white_color_handler, "cloud_original");
 
             // Set the point size
             vis_orig.setPointCloudRenderingProperties (pcl_visualization::PCL_VISUALIZER_POINT_SIZE, psize, "cloud_original");
@@ -159,10 +191,10 @@ int main (int argc, char** argv) {
              * PLANAR SEGMENTATION
              */
 
-            pcl::ModelCoefficients coefficients;
+            pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients());
             pcl::PointIndices::Ptr inliers (new pcl::PointIndices());
             // Create the segmentation object
-            pcl::SACSegmentation<pcl::PointXYZ> seg;
+            pcl::SACSegmentation<Point> seg;
             // Optional
             seg.setOptimizeCoefficients (true);
             // Mandatory
@@ -170,11 +202,8 @@ int main (int argc, char** argv) {
             seg.setMethodType (pcl::SAC_RANSAC);
             seg.setDistanceThreshold (0.1);
 
-
-
-            CloudT::Ptr cloudptr (new CloudT (cloud_xyz));
-            seg.setInputCloud (cloudptr);
-            seg.segment (*inliers, coefficients);
+            seg.setInputCloud (cloud_filtered);
+            seg.segment (*inliers, *coefficients);
 
             if (inliers->indices.size () == 0){ 
                 ROS_ERROR ("Could not estimate a planar model for the given dataset.");
@@ -184,39 +213,61 @@ int main (int argc, char** argv) {
             /*
              * EXTRACTION
              */
-            CloudT::Ptr cloud_p (new CloudT());
 
             pcl::ExtractIndices<Point> extract;
             // Extract the inliers
-            extract.setInputCloud (cloudptr);
+            extract.setInputCloud (cloud_filtered);
             extract.setIndices (inliers);
             extract.setNegative (false);
-            extract.filter (*cloud_p);
+            extract.filter (*cloud_psegment);
             ROS_INFO ("PointCloud representing the planar component: %d data points.", 
-                    cloud_p->width * cloud_p->height);
+                    cloud_psegment->width * cloud_psegment->height);
 
             /*
             std::stringstream ss;
             ss << "table_scene_lms400_plane_" << i << ".pcd";
-            writer.write<pcl::PointXYZ> (ss.str (), *cloud_p, false);
+            writer.write<pcl::PointXYZ> (ss.str (), *cloud_psegment, false);
             */
 
             // Create the filtering object
-            extract.setNegative (true);
-            extract.filter (*cloudptr);
+            //extract.setNegative (true);
+            //extract.filter (*cloudptr);
 
             
             /*
              * GROUND PLANE VISUALIZATION
              */ 
 
-            pcl_visualization::PointCloudColorHandlerCustom<Point> single_color
-                (*cloud_p, 0, 255, 0);
+            pcl_visualization::PointCloudColorHandlerCustom<Point> psegment_color
+                (*cloud_psegment, 0, 255, 0);
             
-            vis_orig.addPointCloud (*cloud_p, single_color, "filtered");
+            vis_orig.addPointCloud (*cloud_psegment, psegment_color, "psegment");
             vis_orig.setPointCloudRenderingProperties 
-                (pcl_visualization::PCL_VISUALIZER_POINT_SIZE, psize, "filtered");
+                (pcl_visualization::PCL_VISUALIZER_POINT_SIZE, psize, "psegment");
+
+
+            /*
+             * CONVEX HULL
+             */
             
+            // Create a Convex Hull representation of the projected inliers
+            pcl::ConvexHull<Point> chull;
+            chull.setInputCloud (cloud_psegment);
+            chull.reconstruct (*cloud_hull);
+
+            ROS_INFO ("Convex hull has: %zu data points.", cloud_hull->points.size ());
+
+
+            /*
+             * CONVEX HULL VISUALIZATION
+             */
+            pcl_visualization::PointCloudColorHandlerCustom<Point> convexHull_color 
+                (*cloud_hull, 255, 0, 0);
+            
+            vis_orig.addPointCloud (*cloud_hull, convexHull_color, "hull");
+            vis_orig.setPointCloudRenderingProperties 
+                (pcl_visualization::PCL_VISUALIZER_POINT_SIZE, 5, "hull");
+
 
 
             cloud_old_ = cloud_;
