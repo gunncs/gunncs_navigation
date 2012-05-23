@@ -23,9 +23,11 @@
   <depend package="cv_bridge"/>
   <depend package="opencv2"/>
   <depend package="joy"/>
+    <!-- pcl -->
   <depend package="pcl"/>
   <depend package="pcl_ros"/>
   <depend package="visualization_msgs"/>
+  <depend package="pcl_visualization"/>
 
 
 
