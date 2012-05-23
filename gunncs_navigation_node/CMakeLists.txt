@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 2.4.6)
 include($ENV{ROS_ROOT}/core/rosbuild/rosbuild.cmake)
 
+#include library for pcl, corrects bug in fuerte.
+#https://code.ros.org/trac/ros-pkg/ticket/5419
+include_directories("/usr/include/vtk-5.8")
+include("/opt/ros/fuerte/share/pcl-1.5/PCLConfigVersion.cmake")
+include("/opt/ros/fuerte/share/pcl-1.5/PCLConfig.cmake")
+
 # Set the build type.  Options are:
 #  Coverage       : w/ debug symbols, w/o optimization, w/ code-coverage
 #  Debug          : w/ debug symbols, w/o optimization
@@ -11,13 +17,15 @@ include($ENV{ROS_ROOT}/core/rosbuild/rosbuild.cmake)
 
 rosbuild_init()
 
+
+
 #set the default path for built executables to the "bin" directory
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 #set the default path for built libraries to the "lib" directory
 set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 
 #uncomment if you have defined messages
-rosbuild_genmsg()
+#rosbuild_genmsg()
 #uncomment if you have defined services
 #rosbuild_gensrv()
 
@@ -29,4 +37,14 @@ rosbuild_genmsg()
 #rosbuild_add_executable(example examples/example.cpp)
 #target_link_libraries(example ${PROJECT_NAME})
 
-rosbuild_add_executable(rangerService src/rangerService.cpp)
+#rosbuild_add_executable(distanceDiag src/distanceDiag.cpp)
+#rosbuild_add_executable(cannyGroundDetect src/cannyGroundDetect.cpp)
+rosbuild_add_executable(pclDemo src/pclDemo.cpp)
+rosbuild_add_executable(pclGroundDetect src/pclGroundDetect.cpp)
+rosbuild_add_executable(ransac src/ransac.cpp)
+# needed on ubuntu 12.04
+target_link_libraries(ransac libvtkCommon.so libvtkFiltering.so )
+target_link_libraries(pclGroundDetect libvtkCommon.so libvtkFiltering.so )
+target_link_libraries(pclDemo libvtkCommon.so libvtkFiltering.so )
+
+

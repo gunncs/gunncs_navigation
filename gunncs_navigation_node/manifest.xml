@@ -10,22 +10,24 @@
   <url>http://ros.org/wiki/gunncs_navigation</url>
   <depend package="rospy"/>
   <depend package="roscpp"/>
+    <!--
   <depend package="irobot_create_2_1"/>
+    -->
+  <depend package="gunncs_navigation_msgs"/>
   <depend package="sensor_msgs"/>
   <depend package="geometry_msgs"/>
   <depend package="std_msgs"/>
   <depend package="nav_msgs"/>
+  <depend package="stereo_msgs"/>
   <depend package="image_transport"/>
   <depend package="cv_bridge"/>
   <depend package="opencv2"/>
-  <depend package="stereo_msgs"/>
-  <depend package="gunncs_navigation_msgs"/>
   <depend package="joy"/>
-  <msgs>
-      msg/Line.msg
-      msg/Bound.msg
-      msg/GunncsLaserScan.msg
-  </msgs>
+  <depend package="pcl"/>
+  <depend package="pcl_ros"/>
+  <depend package="visualization_msgs"/>
+
+
 
 
 
