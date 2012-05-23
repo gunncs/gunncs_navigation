@@ -28,10 +28,11 @@ COLORS = {}
 
 def main():
     rospy.loginfo("starting laserAngle")
+    global pub
+    global pub1
     #global window, win, plot, rangeCurve
     #open plotter
-    ''rospy.loginfo("starting plotter...")
-    pub = rospy.Publisher("/featured_scan", FeaturedLaserScan)
+    #rospy.loginfo("starting plotter...")
 
 
     '''
@@ -61,12 +62,13 @@ def main():
     Visualization
     '''
 
-
+    '''
     #open vis
     rospy.loginfo("starting visualization...")
     global window
     pygame.init()
     window = pygame.display.set_mode((640,640))
+    '''
 
     rospy.loginfo("subscribing to laser...")
     rospy.init_node('laserAngle')
@@ -85,7 +87,7 @@ def scanned(laserscan):
 
     #draw vis
     deltaRs = getDeltaRMap(laserscan)
-    inThreshold, outOfThreshold  = removeSpikes(deltaR)
+    inThreshold, outOfThreshold  = removeSpikes(deltaRs)
     #graphs which points are not in the threshold
     centersCurve.setData(np.array(outOfThreshold))
     #graphs the differences in radii between points
@@ -95,11 +97,17 @@ def scanned(laserscan):
     #print errorClusters
     #drawVis(laserscan, errorClusters)
     #print(inThreshold)
-    publishData(laserScan, errorClusters)
+    publishData(laserscan, errorClusters)
 
-def publishData(laserScan, clusters):
+def publishData(laserscan, clusters):
+    global pub
+    global pub1
+
+    pub = rospy.Publisher("/featured_scan", FeaturedLaserScan)
+    pub1 = rospy.Publisher("/teststringpublish", String)
 
     featuredLaserScan = FeaturedLaserScan()
+    featuredLaserScan.laserscan = laserscan
 
     #for each feature:
     for cluster in clusters:
@@ -120,8 +128,10 @@ def publishData(laserScan, clusters):
 
         #Add feature message to list of features
         featuredLaserScan.features.append(feature)
-    rospy.log(featuredLaserScan)
+    rospy.loginfo(featuredLaserScan)
     pub.publish(featuredLaserScan)
+    str = "hello world $s"
+    pub1.publish(String(str))
 
 def getClusters(positions):
     '''
@@ -180,7 +190,7 @@ def removeSpikes(deltaRs):
             outOfThreshold.append(0)
 
     #print(positions)
-    return positions
+    return positions, outOfThreshold
 
 
 def deltaR(laserscan, id, neighborRange):
@@ -215,7 +225,6 @@ def getDeltaRMap(laserscan):
 
     return deltaRs
 
-        #print(str(p1) + "\t" + str(p1[0]))
 
 '''
 def drawVis(laserscan, clusters):
@@ -302,7 +311,7 @@ def getRegression(laserscan, cluster):
 
 
 
-'
+'''
 def nonRandomColor(i):
     global COLORS
     if i not in COLORS:
@@ -311,7 +320,7 @@ def nonRandomColor(i):
                 random.randint(0,255),
                 random.randint(0,255))
     return COLORS[i]
-'
+'''
 
 
 if __name__ == "__main__":

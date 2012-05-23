@@ -1,3 +1,3 @@
 
-int8 lower
-int8 upper
+int16 lower
+int16 upper
