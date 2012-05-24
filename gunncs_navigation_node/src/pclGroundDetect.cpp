@@ -129,13 +129,13 @@ int main (int argc, char** argv) {
         }
 
         // Save the last point size used
-        vis_orig.getPointCloudRenderingProperties (pcl_visualization::PCL_VISUALIZER_POINT_SIZE, psize, "cloud_original");
+        //vis_orig.getPointCloudRenderingProperties (pcl_visualization::PCL_VISUALIZER_POINT_SIZE, psize, "cloud_original");
         vis_orig.removePointCloud ("cloud_original");
 
-        vis_orig.getPointCloudRenderingProperties (pcl_visualization::PCL_VISUALIZER_POINT_SIZE, psize, "psegment");
+        //vis_orig.getPointCloudRenderingProperties (pcl_visualization::PCL_VISUALIZER_POINT_SIZE, psize, "psegment");
         vis_orig.removePointCloud ("psegment");
 
-        vis_orig.getPointCloudRenderingProperties (pcl_visualization::PCL_VISUALIZER_POINT_SIZE, psize, "hull");
+        //vis_orig.getPointCloudRenderingProperties (pcl_visualization::PCL_VISUALIZER_POINT_SIZE, psize, "hull");
         vis_orig.removePointCloud ("hull");
         // Convert to PointCloud<T>
         m.lock ();
@@ -145,6 +145,10 @@ int main (int argc, char** argv) {
          *****************
          */
         {
+
+
+
+
             CloudT cloud_raw;
             //(const sensor_msgs::PointCloud2 &msg, pcl::PointCloud< PointT > &cloud)
             pcl::fromROSMsg (*cloud_, cloud_raw);
@@ -160,18 +164,24 @@ int main (int argc, char** argv) {
              */
 
             /*
-            pcl::PassThrough<Point> pass;
-            pass.setInputCloud (cloud_original);
-            pass.setFilterFieldName ("z");
-            pass.setFilterLimits(0, 1.1);
-            pass.filter(*cloud_filtered);
+               pcl::PassThrough<Point> pass;
+               pass.setInputCloud (cloud_original);
+               pass.setFilterFieldName ("z");
+               pass.setFilterLimits(0, 1.1);
+               pass.filter(*cloud_filtered);
 
-            */
-
+*/
 
             /*
              * DOWNSAMPLE WITH VOXEL FILTER
              */
+
+            pcl::VoxelGrid<Point> sor;
+            sor.setInputCloud (cloud_original);
+            sor.setLeafSize (0.01, 0.01, 0.01);
+            sor.filter (*cloud_filtered);
+
+
 
 
             /*
@@ -185,7 +195,7 @@ int main (int argc, char** argv) {
             // Set the point size
             vis_orig.setPointCloudRenderingProperties (pcl_visualization::PCL_VISUALIZER_POINT_SIZE, psize, "cloud_original");
 
-            
+
 
             /*
              * PLANAR SEGMENTATION
@@ -224,23 +234,23 @@ int main (int argc, char** argv) {
                     cloud_psegment->width * cloud_psegment->height);
 
             /*
-            std::stringstream ss;
-            ss << "table_scene_lms400_plane_" << i << ".pcd";
-            writer.write<pcl::PointXYZ> (ss.str (), *cloud_psegment, false);
-            */
+               std::stringstream ss;
+               ss << "table_scene_lms400_plane_" << i << ".pcd";
+               writer.write<pcl::PointXYZ> (ss.str (), *cloud_psegment, false);
+               */
 
             // Create the filtering object
             //extract.setNegative (true);
             //extract.filter (*cloudptr);
 
-            
+
             /*
              * GROUND PLANE VISUALIZATION
              */ 
 
             pcl_visualization::PointCloudColorHandlerCustom<Point> psegment_color
                 (*cloud_psegment, 0, 255, 0);
-            
+
             vis_orig.addPointCloud (*cloud_psegment, psegment_color, "psegment");
             vis_orig.setPointCloudRenderingProperties 
                 (pcl_visualization::PCL_VISUALIZER_POINT_SIZE, psize, "psegment");
@@ -249,7 +259,7 @@ int main (int argc, char** argv) {
             /*
              * CONVEX HULL
              */
-            
+
             // Create a Convex Hull representation of the projected inliers
             pcl::ConvexHull<Point> chull;
             chull.setInputCloud (cloud_psegment);
@@ -263,7 +273,7 @@ int main (int argc, char** argv) {
              */
             pcl_visualization::PointCloudColorHandlerCustom<Point> convexHull_color 
                 (*cloud_hull, 255, 0, 0);
-            
+
             vis_orig.addPointCloud (*cloud_hull, convexHull_color, "hull");
             vis_orig.setPointCloudRenderingProperties 
                 (pcl_visualization::PCL_VISUALIZER_POINT_SIZE, 5, "hull");
