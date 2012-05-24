@@ -48,7 +48,10 @@
 <joint name="base_to_camera" type="fixed">
     <parent link="base_footprint"/>
     <child link="camera_link"/>
+        <!--
     <origin xyz="0.09 0 0.075"/>
+        -->
+    <origin xyz="-.23 0 .50" rpy="0 .401425728   0"/>
 </joint>
 
 
