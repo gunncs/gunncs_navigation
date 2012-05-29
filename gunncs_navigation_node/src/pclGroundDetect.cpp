@@ -82,6 +82,39 @@ typedef ColorHandler::ConstPtr ColorHandlerConstPtr;
 sensor_msgs::PointCloud2ConstPtr cloud_, cloud_old_;
 boost::mutex m;
 
+CloudT::Ptr rectifyCloud(CloudT::Ptr original){
+    double theta = -0.3f;
+    const float cosTheta = cos(theta);
+    const float sinTheta = sin(theta);
+
+    CloudT::Ptr rotatedCloud (new CloudT());
+
+
+    for( CloudT::const_iterator it = original->begin(); it != original->end(); ++it){
+        // Rotate about the x-axis to align floor with xz-plane
+        float x = it->x;
+        float y = (it->y)*cosTheta - (it->z)*sinTheta;
+        float z = (it->y)*sinTheta + (it->z)*cosTheta;
+        //double y = it->y;
+        //double z = it->z;
+
+        Point point;
+        point.x = x;
+        point.y = y;
+        point.z = z;
+        //point.rgb = it->rgb;
+
+        rotatedCloud->push_back(point);
+
+
+    }
+    //CloudT::Ptr retu (new CloudT(rotatedCloud));
+    return rotatedCloud;
+
+}
+
+
+
 void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud) {
     ROS_INFO ("PointCloud with %d data points (%s), stamp %f,and frame %s.", 
             cloud->width * cloud->height, 
@@ -146,15 +179,13 @@ int main (int argc, char** argv) {
          */
         {
 
-
-
-
             CloudT cloud_raw;
             //(const sensor_msgs::PointCloud2 &msg, pcl::PointCloud< PointT > &cloud)
             pcl::fromROSMsg (*cloud_, cloud_raw);
 
             CloudT::Ptr cloud_original (new CloudT(cloud_raw));
-            CloudT::Ptr cloud_filtered (new CloudT(cloud_raw));
+            CloudT::Ptr cloud_filtered (new CloudT());
+            CloudT::Ptr cloud_rotated(new CloudT());
             CloudT::Ptr cloud_psegment (new CloudT());
             CloudT::Ptr cloud_projected (new CloudT());
             CloudT::Ptr cloud_hull (new CloudT());
@@ -171,6 +202,8 @@ int main (int argc, char** argv) {
                pass.filter(*cloud_filtered);
 
 */
+            ROS_INFO ("original: %d data points.", 
+                    cloud_original->width * cloud_original->height);
 
             /*
              * DOWNSAMPLE WITH VOXEL FILTER
@@ -180,8 +213,13 @@ int main (int argc, char** argv) {
             sor.setInputCloud (cloud_original);
             sor.setLeafSize (0.01, 0.01, 0.01);
             sor.filter (*cloud_filtered);
+            ROS_INFO ("downsampled:: %d data points.", 
+                    cloud_filtered->width * cloud_filtered->height);
 
-
+            /*
+             * ROTATE
+             */
+            cloud_rotated = rectifyCloud(cloud_filtered);
 
 
             /*
@@ -189,8 +227,8 @@ int main (int argc, char** argv) {
              */
 
             pcl_visualization::PointCloudColorHandlerCustom<Point> white_color_handler 
-                (*cloud_filtered, 255, 255, 255);
-            vis_orig.addPointCloud (*cloud_filtered, white_color_handler, "cloud_original");
+                (*cloud_rotated, 255, 255, 255);
+            vis_orig.addPointCloud (*cloud_rotated, white_color_handler, "cloud_original");
 
             // Set the point size
             vis_orig.setPointCloudRenderingProperties (pcl_visualization::PCL_VISUALIZER_POINT_SIZE, psize, "cloud_original");
@@ -210,9 +248,9 @@ int main (int argc, char** argv) {
             // Mandatory
             seg.setModelType (pcl::SACMODEL_PLANE);
             seg.setMethodType (pcl::SAC_RANSAC);
-            seg.setDistanceThreshold (0.1);
+            seg.setDistanceThreshold (0.01);
 
-            seg.setInputCloud (cloud_filtered);
+            seg.setInputCloud (cloud_rotated);
             seg.segment (*inliers, *coefficients);
 
             if (inliers->indices.size () == 0){ 
@@ -226,11 +264,11 @@ int main (int argc, char** argv) {
 
             pcl::ExtractIndices<Point> extract;
             // Extract the inliers
-            extract.setInputCloud (cloud_filtered);
+            extract.setInputCloud (cloud_rotated);
             extract.setIndices (inliers);
             extract.setNegative (false);
             extract.filter (*cloud_psegment);
-            ROS_INFO ("PointCloud representing the planar component: %d data points.", 
+            ROS_INFO ("planar segment: %d data points.", 
                     cloud_psegment->width * cloud_psegment->height);
 
             /*
@@ -265,7 +303,18 @@ int main (int argc, char** argv) {
             chull.setInputCloud (cloud_psegment);
             chull.reconstruct (*cloud_hull);
 
-            ROS_INFO ("Convex hull has: %zu data points.", cloud_hull->points.size ());
+            //ROS_INFO ("Convex hull has: %zu data points.", cloud_hull->points.size ());
+            ROS_INFO ("convex hull: %d data points.", 
+                    cloud_hull->width * cloud_hull->height);
+
+            //downsample convex hull
+            pcl::VoxelGrid<Point> hull_dsample;
+            hull_dsample.setInputCloud (cloud_hull);
+            hull_dsample.setLeafSize (0.4, 0.4, 0.4);
+            hull_dsample.filter (*cloud_hull);
+            ROS_INFO ("downsampled convex hull: %d data points.", 
+                    cloud_hull->width * cloud_hull->height);
+
 
 
             /*
@@ -277,6 +326,11 @@ int main (int argc, char** argv) {
             vis_orig.addPointCloud (*cloud_hull, convexHull_color, "hull");
             vis_orig.setPointCloudRenderingProperties 
                 (pcl_visualization::PCL_VISUALIZER_POINT_SIZE, 5, "hull");
+
+
+            /*
+             * LINE DRAWING
+             */
 
 
 
