@@ -28,6 +28,8 @@
   <depend package="pcl_ros"/>
   <depend package="visualization_msgs"/>
   <depend package="pcl_visualization"/>
+    <!-- tf -->
+  <depend package="tf"/>
 
 
 

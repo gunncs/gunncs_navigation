@@ -65,6 +65,9 @@
 //passthrough filter
 #include "pcl/filters/passthrough.h"
 
+//tf
+#include <tf/transform_listener.h>
+
 
 #include <iostream>
 #include <stdio.h>
@@ -82,6 +85,51 @@ typedef ColorHandler::ConstPtr ColorHandlerConstPtr;
 sensor_msgs::PointCloud2ConstPtr cloud_, cloud_old_;
 boost::mutex m;
 
+double getAngle(){
+    tf::TransformListener listener;
+    tf::StampedTransform transform;
+    try{
+      listener.lookupTransform("/base_link", "/camera_link",  
+                               ros::Time(0), transform);
+    }
+    catch (tf::TransformException ex){
+      ROS_ERROR("%s",ex.what());
+    }
+    return 0;
+
+}
+
+
+/**
+ * Flattens cloud to be parallel to XZ axis (red/blue axis)
+ */
+CloudT::Ptr flattenCloud(CloudT::Ptr original){
+
+    CloudT::Ptr flattenedCloud (new CloudT());
+
+
+    for( CloudT::const_iterator it = original->begin(); it != original->end(); ++it){
+
+        Point point;
+        point.x = it -> x;
+        point.y = 0;
+        point.z = it -> z;
+        //point.rgb = it->rgb;
+
+        flattenedCloud->push_back(point);
+
+
+    }
+    //CloudT::Ptr retu (new CloudT(rotatedCloud));
+    return flattenedCloud;
+
+}
+
+
+
+/**
+ * Rectifies cloud-- rotates it to 0 degrees
+ */
 CloudT::Ptr rectifyCloud(CloudT::Ptr original){
     double theta = -0.3f;
     const float cosTheta = cos(theta);
@@ -112,8 +160,6 @@ CloudT::Ptr rectifyCloud(CloudT::Ptr original){
     return rotatedCloud;
 
 }
-
-
 
 void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud) {
     ROS_INFO ("PointCloud with %d data points (%s), stamp %f,and frame %s.", 
@@ -170,6 +216,7 @@ int main (int argc, char** argv) {
 
         //vis_orig.getPointCloudRenderingProperties (pcl_visualization::PCL_VISUALIZER_POINT_SIZE, psize, "hull");
         vis_orig.removePointCloud ("hull");
+        vis_orig.addCoordinateSystem();
         // Convert to PointCloud<T>
         m.lock ();
 
@@ -280,6 +327,12 @@ int main (int argc, char** argv) {
             // Create the filtering object
             //extract.setNegative (true);
             //extract.filter (*cloudptr);
+            //
+
+            /*
+             * GROUND PLANE FLATTENING
+             */
+            cloud_psegment = flattenCloud(cloud_psegment);
 
 
             /*
