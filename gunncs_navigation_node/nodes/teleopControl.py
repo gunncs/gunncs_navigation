@@ -18,8 +18,8 @@ def main():
     rospy.loginfo("starting Twist Publishing via Joystick...")
     rospy.init_node('teleopControl')
 
-    pub = rospy.Publisher('/cmd_vel', Twist) 
-    rospy.Subscriber("/joy", Joy, joystickChanged) 
+    pub = rospy.Publisher('/safeCmdVel', Twist)
+    rospy.Subscriber("/joy", Joy, joystickChanged)
     rospy.spin()
 
 def joystickChanged(data):
@@ -27,7 +27,7 @@ def joystickChanged(data):
     #print data.axes[5]
     msg = Twist()
     msg.linear.x = .5*data.axes[1]
-    msg.angular.z = 2*data.axes[0] 
+    msg.angular.z = 2*data.axes[0]
     pub.publish(msg)
 
 
