@@ -9,12 +9,14 @@ import math
 import random
 import time
 
+from std_msgs.msg import *
+
 '''
 provides a .5 second heartbeat when the robot is supposed to be operating
 must be stopped manuall
 '''
 
-POLL_TIME = 0.5
+POLL_TIME = 0.4
 
 #provides a 0.5 second heartbeat
 def main():
@@ -22,8 +24,8 @@ def main():
     global robotEnabled
     rospy.loginfo("starting dumb heartbeat")
     rospy.init_node('dumbHeartbeat')
-    pub = rospy.Publisher("/heartbeat", UInt64)
-    rospy.Subscriber("/robotEnabled", Bool, setRobotState)
+    pub = rospy.Publisher("/heartbeat", Int64)
+    #rospy.Subscriber("/robotEnabled", Bool, setRobotState)
 
     countNumber = 0
 

@@ -10,12 +10,13 @@ import random
 import time
 
 from geometry_msgs.msg import *
+from std_msgs.msg import *
 
 '''
 takes command velocities from /safeCmdVel, and if periodically receiving heartbeat signal, relays it to robot
 '''
 
-POLL_TIME = .1
+POLL_TIME = 1
 
 ZERO_TWIST = Twist()
 ZERO_TWIST.linear.x = 0
@@ -32,8 +33,9 @@ def main():
     pub = rospy.Publisher("/cmd_vel", Twist)
 
     global lastMessageReceivedTime
+    lastMessageReceivedTime = 0
 
-    rospy.Subscriber("/heartbeat", int64, updateTime)
+    rospy.Subscriber("/heartbeat", Int64, updateTime)
     rospy.Subscriber("/safeCmdVel", Twist, updateVelocity)
 
 
