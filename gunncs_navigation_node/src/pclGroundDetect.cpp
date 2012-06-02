@@ -73,6 +73,7 @@
 #include <stdio.h>
 #include <cstdlib>
 #include <string>
+#include <sstream>
 
 using namespace std;
 
@@ -96,6 +97,33 @@ double getAngle(){
       ROS_ERROR("%s",ex.what());
     }
     return 0;
+
+}
+
+/**
+ * draws lines from and to every point in the cloud
+ */
+void drawHullLines(CloudT::Ptr hull, pcl_visualization::PCLVisualizer vis){
+
+    for (int i = 0; i<hull->size(); i++){
+        for (int j = 0; j<hull->size(); j++){
+            stringstream ss;
+            ss << "line" << i << "." << j ;
+            hull->points[i];
+            /*
+             *
+             * [in]     pt1     the first (start) point on the line
+             * [in]     pt2     the second (end) point on the line
+             * [in]     r   the red channel of the color that the line should be rendered with
+             * [in]     g   the green channel of the color that the line should be rendered with
+             * [in]     b   the blue channel of the color that the line should be rendered with
+             * [in]     id  the line id/name (default: "line")
+             */
+            vis.addLine<Point, Point> (hull->points[i], hull->points[j], 0.0, 0.0, 1.0, ss.str());
+        }
+    }
+
+
 
 }
 
@@ -267,6 +295,7 @@ int main (int argc, char** argv) {
              * ROTATE
              */
             cloud_rotated = rectifyCloud(cloud_filtered);
+            //cloud_rotated = cloud_filtered;
 
 
             /*
@@ -279,7 +308,6 @@ int main (int argc, char** argv) {
 
             // Set the point size
             vis_orig.setPointCloudRenderingProperties (pcl_visualization::PCL_VISUALIZER_POINT_SIZE, psize, "cloud_original");
-
 
 
             /*
@@ -385,6 +413,7 @@ int main (int argc, char** argv) {
              * LINE DRAWING
              */
 
+            drawHullLines(cloud_hull, vis_orig);
 
 
             cloud_old_ = cloud_;
