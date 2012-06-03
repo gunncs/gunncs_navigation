@@ -93,6 +93,16 @@ int point2 = 1;
 sensor_msgs::PointCloud2ConstPtr cloud_, cloud_old_;
 boost::mutex m;
 
+struct HullLine {
+    Point a;
+    Point b;
+    int aIndex;
+    int bIndex;
+    double slope;
+};
+
+
+
 double getAngle(){
     tf::TransformListener listener;
     tf::StampedTransform transform;
@@ -107,10 +117,14 @@ double getAngle(){
 
 }
 
-double pointDifference(const Point& a, const Point& b, CloudT::Ptr plane, int i, int j, pcl_visualization::PCLVisualizer& vis){
+/**
+ * Determines the number of points in a provided point cloud are on either
+ * side of a line comprised of 2 points, and returns the lower of the two counts.
+ * This is useful for determining which line comprises an edge in a cloud.
+ */
+double pointDifference(const Point& a, const Point& b, CloudT::Ptr plane){
     //slope
     double m = (b.z - a.z) / (b.x - a.x);
-
     double above = 0, below = 0;
 
     for (int i = 0; i<plane->size(); i++){
@@ -120,85 +134,106 @@ double pointDifference(const Point& a, const Point& b, CloudT::Ptr plane, int i,
         float calculated = m * (c.x - a.x) + a.z;
         if (calculated < value) {// the graph is taller than real point
             below++;
-        } else if (calculated != value){
+        } else if (calculated != value){// we don't want to label the points we are on
             above++;
         }
 
     }
-    //stringstream name;
-    //name << "l " << i << "." << j << ":" << above <<":" <<  below ;
-    //vis.removeShape(name.str());
-    /*
-     * /** \brief Add a text to screen
-     * \param text the text to add
-     * \param xpos the X position on screen where the text should be added
-     * \param ypos the Y position on screen where the text should be added
-     * \param r the red color value
-     * \param g the green color value
-     * \param b the blue color vlaue
-     * \param id the text object id (default: equal to the "text" parameter)
-     * \param viewport the view port (default: all)
-     */
-
-    //vis.addText(name.str(), 100 * i, 100 * j, 1.0, 1.0, 1.0 );
-
-    ROS_INFO("above: %f \t below: %f", above, below);
 
     ///return: represents the number of points on the outer edge
     return min(above, below);
 }
 
-bool goodLine(const Point& a, const Point& b, CloudT::Ptr plane, int i, int j, pcl_visualization::PCLVisualizer& vis){
-    return pointDifference(a, b, plane, i, j, vis) ==  0;
-
+/**
+ * A line is on the edge of a provided cloud if it has no points
+ * on one side of a line
+ */
+bool edgeLine(const Point& a, const Point& b, CloudT::Ptr plane){
+    return pointDifference(a, b, plane) ==  0;
 }
 
 
 /**
  * draws lines from and to every point in the cloud
  */
-void drawHullLines(CloudT::Ptr hull, CloudT::Ptr plane, pcl_visualization::PCLVisualizer& vis){
-    //vis.removeAllShapes();
+void drawHullLines(pcl_visualization::PCLVisualizer& vis, const vector<HullLine>& lines){
+
+    for(int i = 0; i<lines.size(); i++){
+        stringstream lineName;
+        lineName << "line" << lines[i].aIndex << "." << lines[i].bIndex;
+
+        vis.removeShape(lineName.str());
+        vis.addLine<Point, Point> (lines[i].a,lines[i].b, 0.0, 0.0, 1.0, lineName.str());
+
+    }
+
+}
+
+/**
+ * Generates a list of relevant lines which comprise the edge
+ * of the point cloud
+ */
+vector<HullLine> getHullLines(CloudT::Ptr hull){
+    vector<HullLine> lines;
 
     for (int i = 0; i<hull->size(); i++){
         //looop from i +1 to do handshake thing
         for (int j = i+1; j<hull->size(); j++){
-            /*
-               int i = point1;
-               int j = point2;
-               */
-            stringstream lineName;
-            lineName << "line" << i << "." << j ;
 
-            //ROS_INFO ( "shape:: %s", lineName.str().c_str() );
-            /*
-             *
-             * [in]     pt1     the first (start) point on the line
-             * [in]     pt2     the second (end) point on the line
-             * [in]     r   the red channel of the color that the line should be rendered with
-             * [in]     g   the green channel of the color that the line should be rendered with
-             * [in]     b   the blue channel of the color that the line should be rendered with
-             * [in]     id  the line id/name (default: "line")
-             */
             Point a = hull->points[i];
             Point b = hull->points[j];
-            vis.removeShape(lineName.str());
-            //vis.addLine<Point, Point> (a,b, 0.0, 0.0, 1.0, ss.str());
-            if(goodLine(a, b, plane, i, j, vis)){
-                //blue
-                vis.addLine<Point, Point> (a,b, 0.0, 0.0, 1.0, lineName.str());
-            } else {
-                //red
-                vis.addLine<Point, Point> (a,b, 1.0, 0.0, 0.0, lineName.str());
+            if(edgeLine(a, b, hull)){
+                HullLine hl;
+                hl.a = a;
+                hl.b = b;
+                hl.aIndex = i;
+                hl.bIndex = j;
+                hl.slope= (b.z - a.z)/ (b.x - a.x);
+                lines.push_back(hl);
+                //construct HullLine, add to list
             }
-
-            //vis.setShapeRenderingProperties(pcl_visualization::PCL_VISUALIZER_LINE_WIDTH, 
         }
     }
 
+    //return retu;
+    return lines;
+}
 
+double pointToLineDistance(Point A, Point B, Point P){
+    double normalLength = sqrt((B.x - A.x) * (B.x - A.x) + (B.y - A.y) * (B.y - A.y));
+    return abs((P.x - A.x) * (B.y - A.y) - (P.y - A.y) * (B.x - A.x)) / normalLength;
+}
+
+CloudT::Ptr filterToEdges(CloudT::Ptr plane, const vector<HullLine>& lines){
+
+    CloudT::Ptr cloud_edges (new CloudT());
+
+    for( CloudT::const_iterator it = plane->begin(); it != plane->end(); ++it){
+        Point P = *it;
+
+        for(int i =0; i<lines.size(); i++){
+            Point B = lines[i].b;
+            Point A = lines[i].a;
+            
+            
+            double normalLength = sqrt((B.x - A.x) * (B.x - A.x) + (B.z - A.z) * (B.z - A.z));
+            double distance = abs((P.x - A.x) * (B.z - A.z) - (P.z - A.z) * (B.x - A.x))/normalLength;
+            if (distance< .1){
+                cloud_edges->push_back(P);
+                break;
+            }
+
+
+        }
+
+    }
+
+    return cloud_edges;
 
 }
+
+
+
 
 
 /**
@@ -289,11 +324,11 @@ int main (int argc, char** argv) {
     ColorHandlerPtr color_handler;
 
     /*
-    cv::namedWindow("hull points");
+       cv::namedWindow("hull points");
 
-    cv::createTrackbar("point1", "hull points", &point1, 10, [] (int x, void*){point1 = x;});
-    cv::createTrackbar("point2", "hull points", &point2, 10, [] (int x, void*){point2 = x;});
-    */
+       cv::createTrackbar("point1", "hull points", &point1, 10, [] (int x, void*){point1 = x;});
+       cv::createTrackbar("point2", "hull points", &point2, 10, [] (int x, void*){point2 = x;});
+       */
 
     double psize = 0;
     while (nh.ok ()){
@@ -314,12 +349,9 @@ int main (int argc, char** argv) {
         // Save the last point size used
         //vis_orig.getPointCloudRenderingProperties (pcl_visualization::PCL_VISUALIZER_POINT_SIZE, psize, "cloud_original");
         vis_orig.removePointCloud ("cloud_original");
-
-        //vis_orig.getPointCloudRenderingProperties (pcl_visualization::PCL_VISUALIZER_POINT_SIZE, psize, "psegment");
         vis_orig.removePointCloud ("psegment");
-
-        //vis_orig.getPointCloudRenderingProperties (pcl_visualization::PCL_VISUALIZER_POINT_SIZE, psize, "hull");
         vis_orig.removePointCloud ("hull");
+        vis_orig.removePointCloud ("edge");
         vis_orig.addCoordinateSystem();
         // Convert to PointCloud<T>
         m.lock ();
@@ -340,6 +372,7 @@ int main (int argc, char** argv) {
             CloudT::Ptr cloud_psegment (new CloudT());
             CloudT::Ptr cloud_projected (new CloudT());
             CloudT::Ptr cloud_hull (new CloudT());
+            CloudT::Ptr cloud_edge(new CloudT());
 
             /*
              * PASSTHROUGH FILTER-- remove NaNs
@@ -491,7 +524,25 @@ int main (int argc, char** argv) {
              * LINE DRAWING
              */
 
-            drawHullLines(cloud_hull, cloud_hull, vis_orig);
+            vector<HullLine> lines = getHullLines(cloud_hull);
+            drawHullLines(vis_orig, lines);
+            //drawHullLines(cloud_hull, cloud_hull, vis_orig);
+            
+            /*
+             * EDGE CLOUD
+             */
+            cloud_edge = filterToEdges(cloud_psegment, lines);
+
+
+            /*
+             * EDGE CLOUD VISUALIZATION
+             */
+            pcl_visualization::PointCloudColorHandlerCustom<Point> edgeCloud_color 
+                (*cloud_edge, 0, 102, 255);
+
+            vis_orig.addPointCloud (*cloud_edge, edgeCloud_color, "edge");
+            vis_orig.setPointCloudRenderingProperties 
+                (pcl_visualization::PCL_VISUALIZER_POINT_SIZE, 2, "edge");
 
 
             cloud_old_ = cloud_;
