@@ -68,6 +68,9 @@
 //tf
 #include <tf/transform_listener.h>
 
+//cv:
+#include <opencv2/highgui/highgui.hpp>
+
 
 #include <iostream>
 #include <stdio.h>
@@ -83,6 +86,10 @@ typedef pcl_visualization::PointCloudColorHandler<sensor_msgs::PointCloud2> Colo
 typedef ColorHandler::Ptr ColorHandlerPtr;
 typedef ColorHandler::ConstPtr ColorHandlerConstPtr;
 
+
+int point1 = 0;
+int point2 = 1;
+
 sensor_msgs::PointCloud2ConstPtr cloud_, cloud_old_;
 boost::mutex m;
 
@@ -90,26 +97,80 @@ double getAngle(){
     tf::TransformListener listener;
     tf::StampedTransform transform;
     try{
-      listener.lookupTransform("/base_link", "/camera_link",  
-                               ros::Time(0), transform);
+        listener.lookupTransform("/base_link", "/camera_link",  
+                ros::Time(0), transform);
     }
     catch (tf::TransformException ex){
-      ROS_ERROR("%s",ex.what());
+        ROS_ERROR("%s",ex.what());
     }
     return 0;
 
 }
 
+double pointDifference(const Point& a, const Point& b, CloudT::Ptr plane, int i, int j, pcl_visualization::PCLVisualizer& vis){
+    //slope
+    double m = (b.z - a.z) / (b.x - a.x);
+
+    double above = 0, below = 0;
+
+    for (int i = 0; i<plane->size(); i++){
+        Point c = plane->points[i];
+
+        float value = c.z;
+        float calculated = m * (c.x - a.x) + a.z;
+        if (calculated < value) {// the graph is taller than real point
+            below++;
+        } else if (calculated != value){
+            above++;
+        }
+
+    }
+    //stringstream name;
+    //name << "l " << i << "." << j << ":" << above <<":" <<  below ;
+    //vis.removeShape(name.str());
+    /*
+     * /** \brief Add a text to screen
+     * \param text the text to add
+     * \param xpos the X position on screen where the text should be added
+     * \param ypos the Y position on screen where the text should be added
+     * \param r the red color value
+     * \param g the green color value
+     * \param b the blue color vlaue
+     * \param id the text object id (default: equal to the "text" parameter)
+     * \param viewport the view port (default: all)
+     */
+
+    //vis.addText(name.str(), 100 * i, 100 * j, 1.0, 1.0, 1.0 );
+
+    ROS_INFO("above: %f \t below: %f", above, below);
+
+    ///return: represents the number of points on the outer edge
+    return min(above, below);
+}
+
+bool goodLine(const Point& a, const Point& b, CloudT::Ptr plane, int i, int j, pcl_visualization::PCLVisualizer& vis){
+    return pointDifference(a, b, plane, i, j, vis) ==  0;
+
+}
+
+
 /**
  * draws lines from and to every point in the cloud
  */
-void drawHullLines(CloudT::Ptr hull, pcl_visualization::PCLVisualizer vis){
+void drawHullLines(CloudT::Ptr hull, CloudT::Ptr plane, pcl_visualization::PCLVisualizer& vis){
+    //vis.removeAllShapes();
 
     for (int i = 0; i<hull->size(); i++){
-        for (int j = 0; j<hull->size(); j++){
-            stringstream ss;
-            ss << "line" << i << "." << j ;
-            hull->points[i];
+        //looop from i +1 to do handshake thing
+        for (int j = i+1; j<hull->size(); j++){
+            /*
+               int i = point1;
+               int j = point2;
+               */
+            stringstream lineName;
+            lineName << "line" << i << "." << j ;
+
+            //ROS_INFO ( "shape:: %s", lineName.str().c_str() );
             /*
              *
              * [in]     pt1     the first (start) point on the line
@@ -119,7 +180,19 @@ void drawHullLines(CloudT::Ptr hull, pcl_visualization::PCLVisualizer vis){
              * [in]     b   the blue channel of the color that the line should be rendered with
              * [in]     id  the line id/name (default: "line")
              */
-            vis.addLine<Point, Point> (hull->points[i], hull->points[j], 0.0, 0.0, 1.0, ss.str());
+            Point a = hull->points[i];
+            Point b = hull->points[j];
+            vis.removeShape(lineName.str());
+            //vis.addLine<Point, Point> (a,b, 0.0, 0.0, 1.0, ss.str());
+            if(goodLine(a, b, plane, i, j, vis)){
+                //blue
+                vis.addLine<Point, Point> (a,b, 0.0, 0.0, 1.0, lineName.str());
+            } else {
+                //red
+                vis.addLine<Point, Point> (a,b, 1.0, 0.0, 0.0, lineName.str());
+            }
+
+            //vis.setShapeRenderingProperties(pcl_visualization::PCL_VISUALIZER_LINE_WIDTH, 
         }
     }
 
@@ -132,12 +205,8 @@ void drawHullLines(CloudT::Ptr hull, pcl_visualization::PCLVisualizer vis){
  * Flattens cloud to be parallel to XZ axis (red/blue axis)
  */
 CloudT::Ptr flattenCloud(CloudT::Ptr original){
-
     CloudT::Ptr flattenedCloud (new CloudT());
-
-
     for( CloudT::const_iterator it = original->begin(); it != original->end(); ++it){
-
         Point point;
         point.x = it -> x;
         point.y = 0;
@@ -200,7 +269,6 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud) {
     m.unlock ();
 }
 
-/* ---[ */
 int main (int argc, char** argv) {
     ros::init (argc, argv, "pointcloud_online_viewer");
     ros::NodeHandle nh;
@@ -220,12 +288,20 @@ int main (int argc, char** argv) {
     pcl_visualization::PCLVisualizer vis_orig(argc, argv, "Original");
     ColorHandlerPtr color_handler;
 
+    /*
+    cv::namedWindow("hull points");
+
+    cv::createTrackbar("point1", "hull points", &point1, 10, [] (int x, void*){point1 = x;});
+    cv::createTrackbar("point2", "hull points", &point2, 10, [] (int x, void*){point2 = x;});
+    */
+
     double psize = 0;
     while (nh.ok ()){
         // Spin
         ros::spinOnce ();
         ros::Duration (0.001).sleep ();
         vis_orig.spinOnce (10);
+        //cv::waitKey(10);
 
         // If no cloud received yet, 
         if (!cloud_){
@@ -286,7 +362,7 @@ int main (int argc, char** argv) {
 
             pcl::VoxelGrid<Point> sor;
             sor.setInputCloud (cloud_original);
-            sor.setLeafSize (0.01, 0.01, 0.01);
+            sor.setLeafSize (0.05, 0.05, 0.05);
             sor.filter (*cloud_filtered);
             ROS_INFO ("downsampled:: %d data points.", 
                     cloud_filtered->width * cloud_filtered->height);
@@ -301,14 +377,16 @@ int main (int argc, char** argv) {
             /*
              * VISUALIZING FILTERED
              */
+            /*
 
-            pcl_visualization::PointCloudColorHandlerCustom<Point> white_color_handler 
-                (*cloud_rotated, 255, 255, 255);
-            vis_orig.addPointCloud (*cloud_rotated, white_color_handler, "cloud_original");
+               pcl_visualization::PointCloudColorHandlerCustom<Point> white_color_handler 
+               (*cloud_rotated, 255, 255, 255);
+               vis_orig.addPointCloud (*cloud_rotated, white_color_handler, "cloud_original");
 
             // Set the point size
             vis_orig.setPointCloudRenderingProperties (pcl_visualization::PCL_VISUALIZER_POINT_SIZE, psize, "cloud_original");
 
+*/
 
             /*
              * PLANAR SEGMENTATION
@@ -413,7 +491,7 @@ int main (int argc, char** argv) {
              * LINE DRAWING
              */
 
-            drawHullLines(cloud_hull, vis_orig);
+            drawHullLines(cloud_hull, cloud_hull, vis_orig);
 
 
             cloud_old_ = cloud_;
