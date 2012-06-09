@@ -5,7 +5,7 @@ rosbuild_init ()
 rosbuild_add_boost_directories ()
 
 set (EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
-include_directories (${CMAKE_CURRENT_BINARY_DIR})
+include_directories (${CMAKE_CURRENT_BINARY_DIR}) 
 include_directories (src)
 
 find_package(wxWidgets REQUIRED)
@@ -26,6 +26,7 @@ include (${VTK_USE_FILE})
 #  Debug          : w/ debug symbols, w/o optimization
 #  Release        : w/o debug symbols, w/ optimization
 #  RelWithDebInfo : w/ debug symbols, w/ optimization #  MinSizeRel     : w/o debug symbols, w/ optimization, stripped binaries #set(ROS_BUILD_TYPE RelWithDebInfo)
+set(ROS_BUILD_TYPE RelWithDebInfo)
 
 #rosbuild_init()
 
@@ -62,11 +63,12 @@ target_link_libraries(pclDemo libvtkCommon.so libvtkFiltering.so pcl_visualizati
 
 rosbuild_add_executable(pclGroundDetect src/pclGroundDetect.cpp)
 
-rosbuild_add_executable(viewer src/viewer.cpp)
-rosbuild_add_executable(segmentation_plane src/segmentation_plane.cpp)
-rosbuild_add_executable(extract_indicies src/extract_indicies.cpp)
+#rosbuild_add_executable(viewer src/viewer.cpp)
+#rosbuild_add_executable(segmentation_plane src/segmentation_plane.cpp)
+#rosbuild_add_executable(extract_indicies src/extract_indicies.cpp)
 
 rosbuild_add_executable(pidDistanceDemo src/pidDistanceDemo.cpp)
+#rosbuild_add_executable(test_shapes src/test_shapes.cpp)
 
 #rosbuild_add_executable(ransac src/ransac.cpp)
 #target_link_libraries(ransac libvtkCommon.so libvtkFiltering.so pcl_visualization gomp ${PCL_LIBRARIES})

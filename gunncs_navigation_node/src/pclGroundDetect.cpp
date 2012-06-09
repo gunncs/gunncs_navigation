@@ -71,12 +71,28 @@
 //cv:
 #include <opencv2/highgui/highgui.hpp>
 
+#include <std_msgs/Int16.h>
+
 
 #include <iostream>
 #include <stdio.h>
 #include <cstdlib>
 #include <string>
 #include <sstream>
+
+
+#define SOURCE_DOWNSAMPLE 1
+#define SOURCE_ROTATE 0
+#define SOURCE_VIS 1
+#define RANSAC 1
+#define RANSAC_FLATTEN 0
+#define RANSAC_VIS 1
+#define HULL 0
+#define HULL_DOWNSAMPLE 0
+#define HULL_VIS 0
+#define LINES 0
+#define LINES_FILTER 0
+#define LINES_VIS 0
 
 using namespace std;
 
@@ -182,6 +198,7 @@ vector<HullLine> getHullLines(CloudT::Ptr hull){
 
             Point a = hull->points[i];
             Point b = hull->points[j];
+            //if line is an edge, save it!
             if(edgeLine(a, b, hull)){
                 HullLine hl;
                 hl.a = a;
@@ -199,11 +216,14 @@ vector<HullLine> getHullLines(CloudT::Ptr hull){
     return lines;
 }
 
-double pointToLineDistance(Point A, Point B, Point P){
-    double normalLength = sqrt((B.x - A.x) * (B.x - A.x) + (B.y - A.y) * (B.y - A.y));
-    return abs((P.x - A.x) * (B.y - A.y) - (P.y - A.y) * (B.x - A.x)) / normalLength;
+vector<CloudT::Ptr> segmentEdges(CloudT::Ptr cloud_edges, CloudT::Ptr hull){
+
 }
 
+/**
+ * Takes a full ground plane and the lines which comprise the edges, and 
+ * returns a cloud populated by edge points.
+ */
 CloudT::Ptr filterToEdges(CloudT::Ptr plane, const vector<HullLine>& lines){
 
     CloudT::Ptr cloud_edges (new CloudT());
@@ -216,20 +236,17 @@ CloudT::Ptr filterToEdges(CloudT::Ptr plane, const vector<HullLine>& lines){
             Point A = lines[i].a;
             
             
+            //distance from line to point
             double normalLength = sqrt((B.x - A.x) * (B.x - A.x) + (B.z - A.z) * (B.z - A.z));
             double distance = abs((P.x - A.x) * (B.z - A.z) - (P.z - A.z) * (B.x - A.x))/normalLength;
-            if (distance< .1){
+            if (distance< .05){//TODO magic number
                 cloud_edges->push_back(P);
                 break;
             }
-
-
         }
-
     }
 
     return cloud_edges;
-
 }
 
 
@@ -307,6 +324,7 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud) {
 int main (int argc, char** argv) {
     ros::init (argc, argv, "pointcloud_online_viewer");
     ros::NodeHandle nh;
+    ros::Publisher info = nh.advertise<std_msgs::Int16>("/groundDetect/numLines", 1);
 
     // Get the queue size from the command line
     int queue_size = 1;
@@ -368,7 +386,6 @@ int main (int argc, char** argv) {
 
             CloudT::Ptr cloud_original (new CloudT(cloud_raw));
             CloudT::Ptr cloud_filtered (new CloudT());
-            CloudT::Ptr cloud_rotated(new CloudT());
             CloudT::Ptr cloud_psegment (new CloudT());
             CloudT::Ptr cloud_projected (new CloudT());
             CloudT::Ptr cloud_hull (new CloudT());
@@ -393,38 +410,43 @@ int main (int argc, char** argv) {
              * DOWNSAMPLE WITH VOXEL FILTER
              */
 
+#if SOURCE_DOWNSAMPLE
             pcl::VoxelGrid<Point> sor;
             sor.setInputCloud (cloud_original);
             sor.setLeafSize (0.05, 0.05, 0.05);
             sor.filter (*cloud_filtered);
             ROS_INFO ("downsampled:: %d data points.", 
                     cloud_filtered->width * cloud_filtered->height);
+#endif
 
             /*
              * ROTATE
              */
-            cloud_rotated = rectifyCloud(cloud_filtered);
-            //cloud_rotated = cloud_filtered;
+#if SOURCE_ROTATE
+            cloud_filtered = rectifyCloud(cloud_filtered);
+#endif
+            //cloud_filtered = cloud_filtered;
 
 
             /*
              * VISUALIZING FILTERED
              */
-            /*
 
+#if SOURCE_VIS
                pcl_visualization::PointCloudColorHandlerCustom<Point> white_color_handler 
-               (*cloud_rotated, 255, 255, 255);
-               vis_orig.addPointCloud (*cloud_rotated, white_color_handler, "cloud_original");
+               (*cloud_filtered, 255, 255, 255);
+               vis_orig.addPointCloud (*cloud_filtered, white_color_handler, "cloud_original");
 
             // Set the point size
             vis_orig.setPointCloudRenderingProperties (pcl_visualization::PCL_VISUALIZER_POINT_SIZE, psize, "cloud_original");
 
-*/
+#endif
 
             /*
              * PLANAR SEGMENTATION
              */
 
+#if RANSAC
             pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients());
             pcl::PointIndices::Ptr inliers (new pcl::PointIndices());
             // Create the segmentation object
@@ -436,7 +458,7 @@ int main (int argc, char** argv) {
             seg.setMethodType (pcl::SAC_RANSAC);
             seg.setDistanceThreshold (0.01);
 
-            seg.setInputCloud (cloud_rotated);
+            seg.setInputCloud (cloud_filtered);
             seg.segment (*inliers, *coefficients);
 
             if (inliers->indices.size () == 0){ 
@@ -444,18 +466,15 @@ int main (int argc, char** argv) {
                 return (-1);
             }   
 
-            /*
-             * EXTRACTION
-             */
-
             pcl::ExtractIndices<Point> extract;
             // Extract the inliers
-            extract.setInputCloud (cloud_rotated);
+            extract.setInputCloud (cloud_filtered);
             extract.setIndices (inliers);
             extract.setNegative (false);
             extract.filter (*cloud_psegment);
             ROS_INFO ("planar segment: %d data points.", 
                     cloud_psegment->width * cloud_psegment->height);
+#endif
 
             /*
                std::stringstream ss;
@@ -471,34 +490,42 @@ int main (int argc, char** argv) {
             /*
              * GROUND PLANE FLATTENING
              */
+#if RANSAC_FLATTEN
             cloud_psegment = flattenCloud(cloud_psegment);
+#endif
 
 
             /*
              * GROUND PLANE VISUALIZATION
              */ 
 
+#if RANSAC_VIS
             pcl_visualization::PointCloudColorHandlerCustom<Point> psegment_color
                 (*cloud_psegment, 0, 255, 0);
 
             vis_orig.addPointCloud (*cloud_psegment, psegment_color, "psegment");
             vis_orig.setPointCloudRenderingProperties 
                 (pcl_visualization::PCL_VISUALIZER_POINT_SIZE, psize, "psegment");
+#endif
 
 
             /*
              * CONVEX HULL
              */
 
+#if HULL
             // Create a Convex Hull representation of the projected inliers
             pcl::ConvexHull<Point> chull;
             chull.setInputCloud (cloud_psegment);
+            //chull.setAlpha(0.5);
             chull.reconstruct (*cloud_hull);
 
             //ROS_INFO ("Convex hull has: %zu data points.", cloud_hull->points.size ());
             ROS_INFO ("convex hull: %d data points.", 
                     cloud_hull->width * cloud_hull->height);
+#endif
 
+#if HULL_DOWNSAMPLE
             //downsample convex hull
             pcl::VoxelGrid<Point> hull_dsample;
             hull_dsample.setInputCloud (cloud_hull);
@@ -507,42 +534,52 @@ int main (int argc, char** argv) {
             ROS_INFO ("downsampled convex hull: %d data points.", 
                     cloud_hull->width * cloud_hull->height);
 
+#endif
+
 
 
             /*
              * CONVEX HULL VISUALIZATION
              */
+#if HULL_VIS
             pcl_visualization::PointCloudColorHandlerCustom<Point> convexHull_color 
                 (*cloud_hull, 255, 0, 0);
 
             vis_orig.addPointCloud (*cloud_hull, convexHull_color, "hull");
             vis_orig.setPointCloudRenderingProperties 
                 (pcl_visualization::PCL_VISUALIZER_POINT_SIZE, 5, "hull");
+#endif
 
 
             /*
              * LINE DRAWING
              */
+#if LINES
 
             vector<HullLine> lines = getHullLines(cloud_hull);
             drawHullLines(vis_orig, lines);
             //drawHullLines(cloud_hull, cloud_hull, vis_orig);
             
+#endif
             /*
              * EDGE CLOUD
              */
+#if LINES_FILTER
             cloud_edge = filterToEdges(cloud_psegment, lines);
+#endif
 
 
             /*
              * EDGE CLOUD VISUALIZATION
              */
+#if LINES_VIS
             pcl_visualization::PointCloudColorHandlerCustom<Point> edgeCloud_color 
                 (*cloud_edge, 0, 102, 255);
 
             vis_orig.addPointCloud (*cloud_edge, edgeCloud_color, "edge");
             vis_orig.setPointCloudRenderingProperties 
                 (pcl_visualization::PCL_VISUALIZER_POINT_SIZE, 2, "edge");
+#endif
 
 
             cloud_old_ = cloud_;
