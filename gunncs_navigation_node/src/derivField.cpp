@@ -15,6 +15,14 @@
 
 #include <math.h>
 
+
+#define ORIGINAL 1
+#define XGRAD 1
+#define YGRAD 1
+#define GRAD 1
+#define THRESHOLD 1
+#define DILATED 1
+
 using namespace cv;
 using namespace std;
 
@@ -27,6 +35,7 @@ void addText(Mat image, string text, double data, int x, int y);
 int x = 320;
 int y = 240;
 int divisor = 1;
+int ir_threshold = 99;
 
 ros::Publisher distance_pub;
 
@@ -41,7 +50,7 @@ void kinectCallBack(const sensor_msgs::ImageConstPtr& msg){
 
 } 
 
-Mat sobel(Mat original){
+Mat sobel(Mat& original){
 
     Mat grad;
     int scale = 1;
@@ -58,19 +67,35 @@ Mat sobel(Mat original){
     Mat abs_grad_x, abs_grad_y;
 
     /// Gradient X
-    //Scharr( original, grad_x, ddepth, 1, 0, scale, delta, BORDER_DEFAULT );
-    Sobel( original, grad_x, ddepth, 1, 0, 3, scale, delta, BORDER_DEFAULT );
+    Scharr( original, grad_x, ddepth, 2, 0, scale, delta, BORDER_DEFAULT );
+    //Sobel( original, grad_x, ddepth, 1, 0, 3, scale, delta, BORDER_DEFAULT );
     convertScaleAbs( grad_x, abs_grad_x );
 
     /// Gradient Y
-    //Scharr( original, grad_y, ddepth, 0, 1, scale, delta, BORDER_DEFAULT );
-    Sobel( original, grad_y, ddepth, 0, 1, 3, scale, delta, BORDER_DEFAULT );
+    Scharr( original, grad_y, ddepth, 0, 2, scale, delta, BORDER_DEFAULT );
+    //Sobel( original, grad_y, ddepth, 0, 1, 3, scale, delta, BORDER_DEFAULT );
     convertScaleAbs( grad_y, abs_grad_y );
 
     /// Total Gradient (approximate)
     addWeighted( abs_grad_x, 0.5, abs_grad_y, 0.5, 0, grad );
     return grad;
 }
+
+Mat getThresholded(Mat& img){
+    Mat ret;
+    //GaussianBlur(img, img, Size(5, 5), 1, 1, 1); 
+    threshold(img, ret, (float)(ir_threshold/100.0), 1, CV_THRESH_BINARY);
+    return ret;
+}   
+
+Mat getDilatedImage(Mat& img){
+    Mat ret;
+    //dilate(InputArray src, OutputArray dst, InputArray kernel, Point anchor=Point(-1,-1), int iterations=1, int borderType=BORDER_CONSTANT, const Scalar& borderValue=morphologyDefaultBorderValue() )
+    dilate(img, ret, Mat(), Point(-1, -1), 4 );
+    return ret;
+}
+
+
 
 
 void loop(cv::Mat original){
@@ -82,22 +107,57 @@ void loop(cv::Mat original){
     //cvtColor(floatImage, floatImage, CV_GRAY2BGR);
     //cv::Canny(floatImage, floatImage, 50, 150, 3);
 
+    Mat grad;
+    int scale = 1;
+    int delta = 0;
+    int ddepth = CV_16S;
 
-    /*
-    std_msgs::Float32 msg;
-    msg.data = dist;
-    distance_pub.publish(msg);
-    */
+    GaussianBlur( original, original, Size(3,3), 0, 0, BORDER_DEFAULT );
+
+    /// Create window
+    //namedWindow( window_name, CV_WINDOW_AUTOSIZE );
+
+    /// Generate grad_x and grad_y
+    Mat grad_x, grad_y;
+    Mat abs_grad_x, abs_grad_y;
+
+    /// Gradient X
+    Scharr( original, grad_x, ddepth, 1, 0, scale, delta, BORDER_DEFAULT );
+    //Sobel( original, grad_x, ddepth, 1, 0, 3, scale, delta, BORDER_DEFAULT );
+    convertScaleAbs( grad_x, abs_grad_x );
+
+    /// Gradient Y
+    Scharr( original, grad_y, ddepth, 0, 1, scale, delta, BORDER_DEFAULT );
+    //Sobel( original, grad_y, ddepth, 0, 1, 3, scale, delta, BORDER_DEFAULT );
+    convertScaleAbs( grad_y, abs_grad_y );
+
+    /// Total Gradient (approximate)
+    addWeighted( abs_grad_x, 0.5, abs_grad_y, 0.5, 0, grad );
     //Mat final = flattenRawImage(grad);
 
-    Mat grad = sobel(original);
-    Mat grad2 = sobel(grad);
+    Mat flat_orig = flattenRawImage(original);
+    Mat flat_grad= flattenRawImage(grad);
+    Mat threshold = getThresholded(flat_grad);
+    Mat dilated = getDilatedImage(threshold);
 
-    grad = divisor*grad;
-    grad2 = divisor*grad2;
-    cv::imshow("Gradient", grad );
-    cv::imshow("Gradient2", grad2 );
-    cv::imshow("Depth", floatImage);
+#if ORIGINAL
+    imshow("Original", flat_orig);
+#endif
+#if GRAD 
+    imshow("Grad", flat_grad);
+#endif
+#if XGRAD 
+    imshow("xGrad", flattenRawImage(abs_grad_x));
+#endif
+#if YGRAD 
+    imshow("yGrad", flattenRawImage(abs_grad_y));
+#endif
+#if THRESHOLD 
+    imshow("Threshold", flattenRawImage(threshold));
+#endif
+#if DILATED
+    imshow("Dilated", flattenRawImage(dilated));
+#endif
     cv::waitKey(1);
 }
 
@@ -150,8 +210,7 @@ cv::Mat_<float> getImage(const sensor_msgs::ImageConstPtr& msg){
 }   
 
 void addText(Mat image, string text, double data, int x, int y){ stringstream ss;
-    ss << text << data;
-    putText(image, ss.str(), cvPoint(x, y), FONT_HERSHEY_PLAIN, 0.7, cvScalar(255,0, 0), 1, CV_AA);
+    ss << text << data; putText(image, ss.str(), cvPoint(x, y), FONT_HERSHEY_PLAIN, 0.7, cvScalar(255,0, 0), 1, CV_AA);
 }
 
 
@@ -160,23 +219,33 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "derivField");
 
     ros::NodeHandle n;
-    cv::namedWindow("Depth");
-    cv::namedWindow("Gradient");
-    cv::namedWindow("Gradient2");
     ros::Subscriber sub = n.subscribe("/camera/depth/image_raw", 1, kinectCallBack);      
     //cv::setMouseCallback("Image", onMouse, 0);
 
     distance_pub = n.advertise<std_msgs::Float32>("/distance", 1);
     //pub_ = nh_.advertise<std_msgs::Float32>("tracking/normal_distance", 1);
-    cv::namedWindow("hull points");
 
-    cv::createTrackbar("point1", "hull points", &divisor, 10, [] (int x, void*){divisor= x;});
+#if ORIGINAL
+    namedWindow("Original");
+#endif
+#if GRAD 
+    namedWindow("Grad");
+#endif
+#if XGRAD 
+    namedWindow("xGrad");
+#endif
+#if XGRAD 
+    namedWindow("yGrad");
+#endif
+#if THRESHOLD 
+    namedWindow("Threshold");
+    createTrackbar("ir", "Threshold", &ir_threshold, 255, [](int x, void*){ ir_threshold = x; });
 
+#endif
+#if DILATED
+    namedWindow("Dilated");
+#endif
 
-    //while (original.isEmpty()){
-    //ROS_INFO("Waiting for update...");
-    //ros::spinOnce();
-    //}
 
     ros::spin();
 
