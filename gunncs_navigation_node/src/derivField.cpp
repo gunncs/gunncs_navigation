@@ -17,8 +17,8 @@
 
 
 #define ORIGINAL 1
-#define XGRAD 1
-#define YGRAD 1
+#define XGRAD 0
+#define YGRAD 0
 #define GRAD 1
 #define THRESHOLD 1
 #define DILATED 1
@@ -41,12 +41,12 @@ ros::Publisher distance_pub;
 
 
 sensor_msgs::CvBridge img_bridge_;
-cv::Mat orig;
+cv::Mat orig(640, 480, CV_8UC1);
 
 void kinectCallBack(const sensor_msgs::ImageConstPtr& msg){
     cv::Mat original = getImage(msg);
     orig = original;
-    loop(original);
+    //loop(original);
 
 } 
 
@@ -91,15 +91,51 @@ Mat getThresholded(Mat& img){
 Mat getDilatedImage(Mat& img){
     Mat ret;
     //dilate(InputArray src, OutputArray dst, InputArray kernel, Point anchor=Point(-1,-1), int iterations=1, int borderType=BORDER_CONSTANT, const Scalar& borderValue=morphologyDefaultBorderValue() )
-    dilate(img, ret, Mat(), Point(-1, -1), 4 );
+    dilate(img, ret, Mat(), Point(-1, -1), 10 );
     return ret;
 }
 
 
+vector<Point> floodFill(Mat& original){
 
 
-void loop(cv::Mat original){
+    int channels = original.channels();
 
+    int nRows = original.rows * channels;
+    int nCols = original.cols;
+    //Mat retu(1, 640*480,CV_8UC1);
+    Mat retu = original.clone();
+
+    if (original.isContinuous()){   
+        nCols *= nRows;
+        nRows = 1;
+    }   
+
+    int i,j;
+    float* originalP;
+    float* retuP;
+    
+    for( i = 0; i < nRows; ++i){   
+        originalP = original.ptr<float>(i);
+
+        retuP = retu.ptr<float>(i);
+        for ( j = 0; j < nCols; ++j){   
+            //p[j] = table[p[j]];
+            retuP[j] = originalP[j];
+            //retuP[j] = 0;
+            //originalP[j] /10;
+        }   
+    }
+
+    //because continuous, just 1x(640x480 pixels)
+    
+    imshow("Test", retu);
+
+    return vector<Point>();
+}
+
+
+void loop(Mat original){
 
     Mat floatImage = flattenRawImage(original);
     //cv::cvtColor(floatImage, floatImage, CV_GRAY2);
@@ -112,7 +148,8 @@ void loop(cv::Mat original){
     int delta = 0;
     int ddepth = CV_16S;
 
-    GaussianBlur( original, original, Size(3,3), 0, 0, BORDER_DEFAULT );
+    Mat blurred;
+    GaussianBlur( original, blurred, Size(3,3), 0, 0, BORDER_DEFAULT );
 
     /// Create window
     //namedWindow( window_name, CV_WINDOW_AUTOSIZE );
@@ -122,23 +159,32 @@ void loop(cv::Mat original){
     Mat abs_grad_x, abs_grad_y;
 
     /// Gradient X
-    Scharr( original, grad_x, ddepth, 1, 0, scale, delta, BORDER_DEFAULT );
-    //Sobel( original, grad_x, ddepth, 1, 0, 3, scale, delta, BORDER_DEFAULT );
+    Scharr( blurred, grad_x, ddepth, 1, 0, scale, delta, BORDER_DEFAULT );
     convertScaleAbs( grad_x, abs_grad_x );
 
     /// Gradient Y
-    Scharr( original, grad_y, ddepth, 0, 1, scale, delta, BORDER_DEFAULT );
-    //Sobel( original, grad_y, ddepth, 0, 1, 3, scale, delta, BORDER_DEFAULT );
+    Scharr( blurred, grad_y, ddepth, 0, 1, scale, delta, BORDER_DEFAULT );
+    //Sobel( blurred, grad_y, ddepth, 0, 1, 3, scale, delta, BORDER_DEFAULT );
     convertScaleAbs( grad_y, abs_grad_y );
 
     /// Total Gradient (approximate)
     addWeighted( abs_grad_x, 0.5, abs_grad_y, 0.5, 0, grad );
     //Mat final = flattenRawImage(grad);
 
-    Mat flat_orig = flattenRawImage(original);
+    Mat flat_orig = flattenRawImage(blurred);
     Mat flat_grad= flattenRawImage(grad);
     Mat threshold = getThresholded(flat_grad);
     Mat dilated = getDilatedImage(threshold);
+    Mat flat_dilated = flattenRawImage(dilated);
+
+    Mat display;
+    cvtColor(flat_dilated, display, CV_GRAY2BGR);
+    //cvtColor(dilated, dilated, CV_GRAY2BGR);
+    circle(display, Point(x, y), 3, Scalar(0, 255, 0), -1);
+    addText(display, "", readDistance(dilated, x, y), x, y);
+    //cvtColor(flat_dilated, display, CV_GRAY2BGR);
+
+    floodFill(dilated);
 
 #if ORIGINAL
     imshow("Original", flat_orig);
@@ -156,8 +202,9 @@ void loop(cv::Mat original){
     imshow("Threshold", flattenRawImage(threshold));
 #endif
 #if DILATED
-    imshow("Dilated", flattenRawImage(dilated));
+    imshow("Dilated", display);
 #endif
+    //imshow("Test", dilated);
     cv::waitKey(1);
 }
 
@@ -168,9 +215,9 @@ void onMouse( int event, int x_pos, int y_pos, int flags, void* param){
     y = y_pos;
     //}
     stringstream str;
-    str << "mouse event:   x" << x_pos << "\ty:" << y << "\tevent: " << event<< endl;
+    //str << "mouse event:   x" << x_pos << "\ty:" << y << "\tevent: " << event<< endl;
     //ROS_INFO(str.str());
-    cout << str.str() << endl;
+    //cout << str.str() << endl;
 }
 
 
@@ -198,7 +245,7 @@ cv::Mat flattenRawImage(cv::Mat original){
 
 
 double readDistance(cv::Mat depth, int x_pos, int y_pos){
-    return depth.at<float>(y_pos, x_pos);
+    return depth.at<float>(Point(x_pos, y_pos));
 }   
 
 
@@ -220,7 +267,6 @@ int main(int argc, char **argv)
 
     ros::NodeHandle n;
     ros::Subscriber sub = n.subscribe("/camera/depth/image_raw", 1, kinectCallBack);      
-    //cv::setMouseCallback("Image", onMouse, 0);
 
     distance_pub = n.advertise<std_msgs::Float32>("/distance", 1);
     //pub_ = nh_.advertise<std_msgs::Float32>("tracking/normal_distance", 1);
@@ -244,10 +290,20 @@ int main(int argc, char **argv)
 #endif
 #if DILATED
     namedWindow("Dilated");
+    setMouseCallback("Dilated", onMouse, 0);
 #endif
+    namedWindow("Test");
+
+    while(n.ok ()){
+        //cout << orig.isEmpty() << endl;
+        ros::spinOnce();
+        ros::Duration(0.001).sleep();
+        loop(orig);
 
 
-    ros::spin();
+    }
+
+
 
     return 0;
 }
