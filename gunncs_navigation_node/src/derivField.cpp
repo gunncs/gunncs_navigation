@@ -103,7 +103,6 @@ vector<Point> floodFill(Mat& original){
 
     int nRows = original.rows * channels;
     int nCols = original.cols;
-    //Mat retu(1, 640*480,CV_8UC1);
     Mat retu = original.clone();
 
     if (original.isContinuous()){   
@@ -114,19 +113,29 @@ vector<Point> floodFill(Mat& original){
     int i,j;
     float* originalP;
     float* retuP;
-    
+    /*
+    originalP = original.ptr<float>(0);
+    //uint8_t* originalP = original.data;
+    uint8_t* retuP = retu.data;
+    for(int i = 0; i< nRows; i++){
+        for(int j = 0; j<nCols; j++){
+            //pixel =// 
+            //
+            originalP[i*retu.cols + j] = 0;
+
+        }
+    }
+    */
+
     for( i = 0; i < nRows; ++i){   
         originalP = original.ptr<float>(i);
-
         retuP = retu.ptr<float>(i);
+
         for ( j = 0; j < nCols; ++j){   
-            //p[j] = table[p[j]];
-            retuP[j] = originalP[j];
-            //retuP[j] = 0;
-            //originalP[j] /10;
+            retuP[j] = 0;
+            int col = j % original.cols;
         }   
     }
-
     //because continuous, just 1x(640x480 pixels)
     
     imshow("Test", retu);
@@ -184,7 +193,11 @@ void loop(Mat original){
     addText(display, "", readDistance(dilated, x, y), x, y);
     //cvtColor(flat_dilated, display, CV_GRAY2BGR);
 
-    floodFill(dilated);
+    Mat flooded = dilated.clone();
+    floodFill(flooded, Point(320, 479), Scalar(1));
+    flooded = flooded - dilated;
+    //flooded = dilated - flooded;
+    //floodFill(dilated);
 
 #if ORIGINAL
     imshow("Original", flat_orig);
@@ -204,7 +217,7 @@ void loop(Mat original){
 #if DILATED
     imshow("Dilated", display);
 #endif
-    //imshow("Test", dilated);
+    imshow("Test", flooded);
     cv::waitKey(1);
 }
 
@@ -215,9 +228,9 @@ void onMouse( int event, int x_pos, int y_pos, int flags, void* param){
     y = y_pos;
     //}
     stringstream str;
-    //str << "mouse event:   x" << x_pos << "\ty:" << y << "\tevent: " << event<< endl;
+    str << "mouse event:   x" << x_pos << "\ty:" << y << "\tevent: " << event<< endl;
     //ROS_INFO(str.str());
-    //cout << str.str() << endl;
+    cout << str.str() << endl;
 }
 
 
