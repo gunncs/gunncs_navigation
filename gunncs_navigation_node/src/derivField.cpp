@@ -22,6 +22,7 @@
 #define GRAD 1
 #define THRESHOLD 1
 #define DILATED 1
+#define FLOOD_FILL 1
 
 using namespace cv;
 using namespace std;
@@ -35,7 +36,10 @@ void addText(Mat image, string text, double data, int x, int y);
 int x = 320;
 int y = 240;
 int divisor = 1;
-int ir_threshold = 99;
+//int ir_threshold = 99;
+float ir_threshold = 0.9999999;
+int noiseThreshold = 21;
+int noiseThreshold2 = 10;
 
 ros::Publisher distance_pub;
 
@@ -50,14 +54,44 @@ void kinectCallBack(const sensor_msgs::ImageConstPtr& msg){
 
 } 
 
+Mat removeNoise(Mat& image){
+    Mat src ;
+    image.convertTo(src, CV_8UC1);
+    Mat ret = src;
+    vector<vector<Point> > contours;
+    ret *=100;
+
+    findContours(src, contours, CV_RETR_LIST, CV_CHAIN_CODE, Point(0, 0));
+    for( int i = 0; i< contours.size(); i++ ){
+        float area = contourArea(contours[i]);
+        //removes shapes with an area less than noiseThreshold
+        if(fabs(area) < noiseThreshold){
+            //draws black over small things
+            drawContours(ret, contours, i, Scalar(0,0,0), CV_FILLED);
+        } else {
+            //   vector<Rect> br = boundingRect(contours[i]);
+            vector<Point> hull;
+            convexHull(contours[i], hull, CV_CLOCKWISE);
+            vector<vector<Point> > hullcontours;
+            hullcontours.push_back(hull);
+            drawContours(ret, hullcontours, -1, Scalar(255,255,255), CV_FILLED);
+            //drawContours(ret, contours, i, Scalar(255,255,255));
+        }   
+    }   
+
+    return ret;
+}   
+
+
 Mat sobel(Mat& original){
+    Mat blurred = original.clone();
 
     Mat grad;
     int scale = 1;
     int delta = 0;
     int ddepth = CV_16S;
 
-    GaussianBlur( original, original, Size(3,3), 0, 0, BORDER_DEFAULT );
+    //GaussianBlur( original, blurred, Size(3,3), 0, 0, BORDER_DEFAULT );
 
     /// Create window
     //namedWindow( window_name, CV_WINDOW_AUTOSIZE );
@@ -67,13 +101,13 @@ Mat sobel(Mat& original){
     Mat abs_grad_x, abs_grad_y;
 
     /// Gradient X
-    Scharr( original, grad_x, ddepth, 2, 0, scale, delta, BORDER_DEFAULT );
-    //Sobel( original, grad_x, ddepth, 1, 0, 3, scale, delta, BORDER_DEFAULT );
+    Scharr( blurred, grad_x, ddepth, 1, 0, scale, delta, BORDER_DEFAULT );
+    //Sobel( blurred, grad_x, ddepth, 1, 0, 3, scale, delta, BORDER_DEFAULT );
     convertScaleAbs( grad_x, abs_grad_x );
 
     /// Gradient Y
-    Scharr( original, grad_y, ddepth, 0, 2, scale, delta, BORDER_DEFAULT );
-    //Sobel( original, grad_y, ddepth, 0, 1, 3, scale, delta, BORDER_DEFAULT );
+    Scharr( blurred, grad_y, ddepth, 0, 1, scale, delta, BORDER_DEFAULT );
+    //Sobel( blurred, grad_y, ddepth, 0, 1, 3, scale, delta, BORDER_DEFAULT );
     convertScaleAbs( grad_y, abs_grad_y );
 
     /// Total Gradient (approximate)
@@ -84,14 +118,14 @@ Mat sobel(Mat& original){
 Mat getThresholded(Mat& img){
     Mat ret;
     //GaussianBlur(img, img, Size(5, 5), 1, 1, 1); 
-    threshold(img, ret, (float)(ir_threshold/100.0), 1, CV_THRESH_BINARY);
+    threshold(img, ret, ir_threshold, 1, CV_THRESH_BINARY);
     return ret;
 }   
 
 Mat getDilatedImage(Mat& img){
     Mat ret;
     //dilate(InputArray src, OutputArray dst, InputArray kernel, Point anchor=Point(-1,-1), int iterations=1, int borderType=BORDER_CONSTANT, const Scalar& borderValue=morphologyDefaultBorderValue() )
-    dilate(img, ret, Mat(), Point(-1, -1), 10 );
+    dilate(img, ret, Mat(), Point(-1, -1), noiseThreshold2);
     return ret;
 }
 
@@ -114,16 +148,16 @@ vector<Point> floodFill(Mat& original){
     float* originalP;
     float* retuP;
     /*
-    originalP = original.ptr<float>(0);
+       originalP = original.ptr<float>(0);
     //uint8_t* originalP = original.data;
     uint8_t* retuP = retu.data;
     for(int i = 0; i< nRows; i++){
-        for(int j = 0; j<nCols; j++){
-            //pixel =// 
-            //
-            originalP[i*retu.cols + j] = 0;
+    for(int j = 0; j<nCols; j++){
+    //pixel =// 
+    //
+    originalP[i*retu.cols + j] = 0;
 
-        }
+    }
     }
     */
 
@@ -137,7 +171,7 @@ vector<Point> floodFill(Mat& original){
         }   
     }
     //because continuous, just 1x(640x480 pixels)
-    
+
     imshow("Test", retu);
 
     return vector<Point>();
@@ -152,35 +186,9 @@ void loop(Mat original){
     //cvtColor(floatImage, floatImage, CV_GRAY2BGR);
     //cv::Canny(floatImage, floatImage, 50, 150, 3);
 
-    Mat grad;
-    int scale = 1;
-    int delta = 0;
-    int ddepth = CV_16S;
 
-    Mat blurred;
-    GaussianBlur( original, blurred, Size(3,3), 0, 0, BORDER_DEFAULT );
-
-    /// Create window
-    //namedWindow( window_name, CV_WINDOW_AUTOSIZE );
-
-    /// Generate grad_x and grad_y
-    Mat grad_x, grad_y;
-    Mat abs_grad_x, abs_grad_y;
-
-    /// Gradient X
-    Scharr( blurred, grad_x, ddepth, 1, 0, scale, delta, BORDER_DEFAULT );
-    convertScaleAbs( grad_x, abs_grad_x );
-
-    /// Gradient Y
-    Scharr( blurred, grad_y, ddepth, 0, 1, scale, delta, BORDER_DEFAULT );
-    //Sobel( blurred, grad_y, ddepth, 0, 1, 3, scale, delta, BORDER_DEFAULT );
-    convertScaleAbs( grad_y, abs_grad_y );
-
-    /// Total Gradient (approximate)
-    addWeighted( abs_grad_x, 0.5, abs_grad_y, 0.5, 0, grad );
-    //Mat final = flattenRawImage(grad);
-
-    Mat flat_orig = flattenRawImage(blurred);
+    Mat grad = sobel(original);
+    Mat flat_orig = flattenRawImage(original);
     Mat flat_grad= flattenRawImage(grad);
     Mat threshold = getThresholded(flat_grad);
     Mat dilated = getDilatedImage(threshold);
@@ -193,11 +201,16 @@ void loop(Mat original){
     addText(display, "", readDistance(dilated, x, y), x, y);
     //cvtColor(flat_dilated, display, CV_GRAY2BGR);
 
+    //floodfill and isolation 
     Mat flooded = dilated.clone();
     floodFill(flooded, Point(320, 479), Scalar(1));
     flooded = flooded - dilated;
     //flooded = dilated - flooded;
     //floodFill(dilated);
+    dilate(flooded, flooded, Mat(), Point(-1, -1), noiseThreshold);
+
+    Mat edges = sobel(flooded)*100;
+    //Mat edges = removeNoise(flooded);
 
 #if ORIGINAL
     imshow("Original", flat_orig);
@@ -217,7 +230,10 @@ void loop(Mat original){
 #if DILATED
     imshow("Dilated", display);
 #endif
-    imshow("Test", flooded);
+#if FLOOD_FILL
+    imshow("Flood Fill", flooded);
+#endif
+    imshow("Test", edges );
     cv::waitKey(1);
 }
 
@@ -298,12 +314,16 @@ int main(int argc, char **argv)
 #endif
 #if THRESHOLD 
     namedWindow("Threshold");
-    createTrackbar("ir", "Threshold", &ir_threshold, 255, [](int x, void*){ ir_threshold = x; });
+    createTrackbar("noiseThreshold", "Threshold", &noiseThreshold, 255, [](int x, void*){ noiseThreshold= x; });
+    createTrackbar("noiseThreshold2", "Threshold", &noiseThreshold2, 255, [](int x, void*){ noiseThreshold2= x; });
 
 #endif
 #if DILATED
     namedWindow("Dilated");
     setMouseCallback("Dilated", onMouse, 0);
+#endif
+#if FLOOD_FILL
+    namedWindow("Flood Fill");
 #endif
     namedWindow("Test");
 
