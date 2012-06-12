@@ -23,6 +23,8 @@
 #define THRESHOLD 1
 #define DILATED 1
 #define FLOOD_FILL 1
+#define FLOOD_FILL_EDGES 1
+#define LINES 1
 
 using namespace cv;
 using namespace std;
@@ -40,6 +42,9 @@ int divisor = 1;
 float ir_threshold = 0.9999999;
 int noiseThreshold = 21;
 int noiseThreshold2 = 10;
+int houghThreshold = 68;
+int houghMinLineLength= 19;
+int houghMaxLineGap= 73;
 
 ros::Publisher distance_pub;
 
@@ -91,7 +96,7 @@ Mat sobel(Mat& original){
     int delta = 0;
     int ddepth = CV_16S;
 
-    //GaussianBlur( original, blurred, Size(3,3), 0, 0, BORDER_DEFAULT );
+    GaussianBlur( original, blurred, Size(3,3), 0, 0, BORDER_DEFAULT );
 
     /// Create window
     //namedWindow( window_name, CV_WINDOW_AUTOSIZE );
@@ -204,12 +209,37 @@ void loop(Mat original){
     //floodfill and isolation 
     Mat flooded = dilated.clone();
     floodFill(flooded, Point(320, 479), Scalar(1));
+    //the convex hull we want is just the part that got flooded
     flooded = flooded - dilated;
-    //flooded = dilated - flooded;
-    //floodFill(dilated);
     dilate(flooded, flooded, Mat(), Point(-1, -1), noiseThreshold);
 
     Mat edges = sobel(flooded)*100;
+    Mat lineResult(480, 640, CV_8UC1);
+    cvtColor(lineResult, lineResult, CV_GRAY2BGR);
+    /*
+    vector<Vec2f> lines;
+    //(InputArray image, OutputArray lines, double rho, double theta, int threshold, double srn=0, double stn=0 
+    //HoughLines(edges, lines, 1, CV_PI/180, houghThreshold, 0, 0 );
+    for( size_t i = 0; i < lines.size(); i++ ){
+        float rho = lines[i][0], theta = lines[i][1];
+        Point pt1, pt2;
+        double a = cos(theta), b = sin(theta);
+        double x0 = a*rho, y0 = b*rho;
+        pt1.x = cvRound(x0 + 1000*(-b));
+        pt1.y = cvRound(y0 + 1000*(a));
+        pt2.x = cvRound(x0 - 1000*(-b));
+        pt2.y = cvRound(y0 - 1000*(a));
+        line( lineResult, pt1, pt2, Scalar(0,0,255), 3, CV_AA);
+    }
+    cout << "loop..." << endl;
+    */
+    vector<Vec4i> lines;
+    HoughLinesP( edges, lines, 1, CV_PI/180, houghThreshold, houghMinLineLength, houghMaxLineGap);
+    for( size_t i = 0; i < lines.size(); i++ )
+    {
+        line( lineResult, Point(lines[i][0], lines[i][1]),
+            Point(lines[i][2], lines[i][3]), Scalar(0,0,255), 3, 8 );
+    }
     //Mat edges = removeNoise(flooded);
 
 #if ORIGINAL
@@ -233,7 +263,12 @@ void loop(Mat original){
 #if FLOOD_FILL
     imshow("Flood Fill", flooded);
 #endif
-    imshow("Test", edges );
+#if FLOOD_FILL_EDGES
+    imshow("Flood Fill Edges", edges );
+#endif
+#if LINES 
+    imshow("Lines", lineResult);
+#endif
     cv::waitKey(1);
 }
 
@@ -316,6 +351,9 @@ int main(int argc, char **argv)
     namedWindow("Threshold");
     createTrackbar("noiseThreshold", "Threshold", &noiseThreshold, 255, [](int x, void*){ noiseThreshold= x; });
     createTrackbar("noiseThreshold2", "Threshold", &noiseThreshold2, 255, [](int x, void*){ noiseThreshold2= x; });
+    createTrackbar("houghThreshold", "Threshold", &houghThreshold, 255, [](int x, void*){ houghThreshold= x; });
+    createTrackbar("houghMinLineLength", "Threshold", &houghMinLineLength, 255, [](int x, void*){houghMinLineLength = x; });
+    createTrackbar("houghMaxLineGap", "Threshold", &houghMaxLineGap, 255, [](int x, void*){ houghMaxLineGap= x; });
 
 #endif
 #if DILATED
@@ -325,7 +363,12 @@ int main(int argc, char **argv)
 #if FLOOD_FILL
     namedWindow("Flood Fill");
 #endif
-    namedWindow("Test");
+#if FLOOD_FILL
+    namedWindow("Flood Fill Edges");
+#endif
+#if LINES 
+    namedWindow("Lines");
+#endif
 
     while(n.ok ()){
         //cout << orig.isEmpty() << endl;
