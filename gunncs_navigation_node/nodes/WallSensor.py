@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import roslib; roslib.load_manifest('gunncs_navigation_node')
 
+import math
 import rospy
 import serial
 
@@ -35,25 +36,29 @@ def laserScanned(laserScan):
     '''
     callback, when a LineFeaturedLaserScan is published
     '''
+    global anglePub, distancePub
 
     #first determine relevant wall
     rightWall = getWallClusterId(laserScan)
 
     #get the angle of the wall
     angle = getWallAngle(laserScan, rightWall)
-
+    angleMsg = Float32()
+    angleMsg.data = angle
+    anglePub.publish(angleMsg)
+    
     #get distance
     distance = getWallDistance(laserScan, rightWall)
-
-    print(laserScanned)
-
+    distMsg = Float32()
+    distMsg.data = distance
+    distancePub.publish(distMsg)
 
 def getWallClusterId(laserScan):
     '''
     determines which feature is the wall we desire,
     and returns its id
     '''
-    return 0
+    return 1
 
 def getWallAngle(laserscan, wallID):
     '''
@@ -61,7 +66,9 @@ def getWallAngle(laserscan, wallID):
     where 0 is parallel. turning left is a positive angle,
     moving right is a negative angle
     '''
-    return 0
+    
+    slope = laserscan.features[wallID].regression.slope
+    return math.atan(slope)*180/math.pi+90
 
 
 def getWallDistance(laserscan, wallID):
@@ -70,7 +77,9 @@ def getWallDistance(laserscan, wallID):
     to the robot. 
 
     '''
-    return 0
+    regression = laserscan.features[wallID].regression
+     
+    return abs(regression.y_intercept)/math.sqrt(regression.slope*regression.slope+1)
 
 
 
