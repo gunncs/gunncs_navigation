@@ -25,6 +25,7 @@
 #define FLOOD_FILL 1
 #define FLOOD_FILL_EDGES 1
 #define LINES 1
+#define LINES_FILTERED 1
 
 using namespace cv;
 using namespace std;
@@ -40,17 +41,38 @@ int y = 240;
 int divisor = 1;
 //int ir_threshold = 99;
 float ir_threshold = 0.9999999;
-int noiseThreshold = 21;
-int noiseThreshold2 = 10;
+int hullThreshold = 21;
+int dilateIterations = 10;
+int houghRho = 1;
+int houghTheta = 1; //in degrees
 int houghThreshold = 68;
 int houghMinLineLength= 19;
 int houghMaxLineGap= 73;
+
+int houghThickness= 1;
+
+int houghFilteredThreshold = 68;
+int houghFilteredMinLineLength= 19;
+int houghFilteredMaxLineGap= 73;
+
+int erode_iterations= 1;
+
+int slopeTolerance = 1;
+int interceptTolerance= 1;
 
 ros::Publisher distance_pub;
 
 
 sensor_msgs::CvBridge img_bridge_;
 cv::Mat orig(640, 480, CV_8UC1);
+
+struct Feature {
+    Point p1;
+    Point p2;
+    double slope;
+    double distance;
+    double intercept;
+};
 
 void kinectCallBack(const sensor_msgs::ImageConstPtr& msg){
     cv::Mat original = getImage(msg);
@@ -69,8 +91,8 @@ Mat removeNoise(Mat& image){
     findContours(src, contours, CV_RETR_LIST, CV_CHAIN_CODE, Point(0, 0));
     for( int i = 0; i< contours.size(); i++ ){
         float area = contourArea(contours[i]);
-        //removes shapes with an area less than noiseThreshold
-        if(fabs(area) < noiseThreshold){
+        //removes shapes with an area less than hullThreshold
+        if(fabs(area) < hullThreshold){
             //draws black over small things
             drawContours(ret, contours, i, Scalar(0,0,0), CV_FILLED);
         } else {
@@ -130,58 +152,83 @@ Mat getThresholded(Mat& img){
 Mat getDilatedImage(Mat& img){
     Mat ret;
     //dilate(InputArray src, OutputArray dst, InputArray kernel, Point anchor=Point(-1,-1), int iterations=1, int borderType=BORDER_CONSTANT, const Scalar& borderValue=morphologyDefaultBorderValue() )
-    dilate(img, ret, Mat(), Point(-1, -1), noiseThreshold2);
+    dilate(img, ret, Mat(), Point(-1, -1), dilateIterations);
     return ret;
 }
 
-
-vector<Point> floodFill(Mat& original){
-
-
-    int channels = original.channels();
-
-    int nRows = original.rows * channels;
-    int nCols = original.cols;
-    Mat retu = original.clone();
-
-    if (original.isContinuous()){   
-        nCols *= nRows;
-        nRows = 1;
-    }   
-
-    int i,j;
-    float* originalP;
-    float* retuP;
-    /*
-       originalP = original.ptr<float>(0);
-    //uint8_t* originalP = original.data;
-    uint8_t* retuP = retu.data;
-    for(int i = 0; i< nRows; i++){
-    for(int j = 0; j<nCols; j++){
-    //pixel =// 
-    //
-    originalP[i*retu.cols + j] = 0;
-
-    }
-    }
-    */
-
-    for( i = 0; i < nRows; ++i){   
-        originalP = original.ptr<float>(i);
-        retuP = retu.ptr<float>(i);
-
-        for ( j = 0; j < nCols; ++j){   
-            retuP[j] = 0;
-            int col = j % original.cols;
-        }   
-    }
-    //because continuous, just 1x(640x480 pixels)
-
-    imshow("Test", retu);
-
-    return vector<Point>();
+vector<Vec4i> doHough(Mat& input,int rho, int numDegrees, int threshold, int minLineLength, int maxLineGap){
+    vector<Vec4i> lines;
+    HoughLinesP( input, lines, rho, CV_PI/180 * numDegrees, threshold, minLineLength, maxLineGap);
+    return lines;
 }
 
+Mat showHoughLines(vector<Vec4i> lines, int thickness){
+
+    //Mat lineResult(480, 640, CV_8UC1);
+    Mat lineResult = Mat::zeros(480, 640, CV_8UC1);
+    //cvtColor(lineResult, lineResult, CV_GRAY2BGR);
+    for( size_t i = 0; i < lines.size(); i++ ){
+        Point a = Point(lines[i][0], lines[i][1]);
+        Point b = Point(lines[i][2], lines[i][3]);
+        //(Mat& img, Point pt1, Point pt2, const Scalar& color, int thickness=1, int lineType=8, int shift=0)
+        line( lineResult,a,b, Scalar(255,255,255), thickness, 8 );
+    }
+    
+    return lineResult;
+}
+
+bool areFeaturesSame(const Feature& f1, const Feature& f2){
+    return  abs (f1.slope - f2.slope) 
+        < (10.0 / (double)slopeTolerance);
+        /*
+        &&
+            abs (f1.intercept - f2.intercept) 
+            < (10.0 / (double)interceptTolerance);
+
+            */
+}
+
+bool isFeatureUnique(const vector<Feature>& features, const Feature& f){
+
+    for(int i = 0; i< features.size(); i++){
+        if(areFeaturesSame(features[i], f)){
+            return false;
+        }
+    }
+    return true;
+
+}
+
+vector<Feature> getFeatures(const vector<Vec4i>& lines){
+    vector<Feature> features;
+
+
+    for(size_t i = 0; i<lines.size(); i++){
+        Feature f;
+
+        Point p1 = Point(lines[i][0], lines[i][1]);
+        Point p2 = Point(lines[i][2], lines[i][3]);
+        double slope = (double) (p2.y - p1.y) / (double)(p2.x - p1.x);
+        //(Mat& img, Point pt1, Point pt2, const Scalar& color, int thickness=1, int lineType=8, int shift=0)
+        double b = (double)p1.y - slope * (double)p1.x;
+        double distance = abs(b) / sqrt(slope * slope + 1);
+
+        f.p1 = p1;
+        f.p2 = p2;
+        f.slope = slope;
+        f.intercept = b;
+        f.distance = distance;
+
+        cout << "slope: " << slope << "\tintecept: " << b<< endl;
+
+        if (isFeatureUnique(features, f)){
+            features.push_back(f);
+        }
+
+    }
+    cout << "DONE!" << endl;
+    return features;
+}
 
 void loop(Mat original){
 
@@ -208,39 +255,38 @@ void loop(Mat original){
 
     //floodfill and isolation 
     Mat flooded = dilated.clone();
-    floodFill(flooded, Point(320, 479), Scalar(1));
+    floodFill(flooded, Point(320, 469), Scalar(1));
     //the convex hull we want is just the part that got flooded
     flooded = flooded - dilated;
-    dilate(flooded, flooded, Mat(), Point(-1, -1), noiseThreshold);
+    dilate(flooded, flooded, Mat(), Point(-1, -1), hullThreshold);
 
     Mat edges = sobel(flooded)*100;
-    Mat lineResult(480, 640, CV_8UC1);
-    cvtColor(lineResult, lineResult, CV_GRAY2BGR);
+
+    vector<Vec4i> lines = 
+        doHough(edges,
+                houghRho, 
+                houghTheta, 
+                houghThreshold, 
+                houghMinLineLength, 
+                houghMaxLineGap);
+    Mat lineResult = showHoughLines(lines, houghThickness);
+
+    Vector<Feature> features = getFeatures(lines);
+
     /*
-    vector<Vec2f> lines;
-    //(InputArray image, OutputArray lines, double rho, double theta, int threshold, double srn=0, double stn=0 
-    //HoughLines(edges, lines, 1, CV_PI/180, houghThreshold, 0, 0 );
-    for( size_t i = 0; i < lines.size(); i++ ){
-        float rho = lines[i][0], theta = lines[i][1];
-        Point pt1, pt2;
-        double a = cos(theta), b = sin(theta);
-        double x0 = a*rho, y0 = b*rho;
-        pt1.x = cvRound(x0 + 1000*(-b));
-        pt1.y = cvRound(y0 + 1000*(a));
-        pt2.x = cvRound(x0 - 1000*(-b));
-        pt2.y = cvRound(y0 - 1000*(a));
-        line( lineResult, pt1, pt2, Scalar(0,0,255), 3, CV_AA);
-    }
-    cout << "loop..." << endl;
+    vector<Vec4i> filteredLines = 
+        doHough(lineResult, 
+                houghRho, 
+                houghTheta, 
+                houghFilteredThreshold, 
+                houghFilteredMinLineLength, 
+                houghFilteredMaxLineGap);
+    Mat filteredLineResult = showHoughLines(filteredLines, 1);
     */
-    vector<Vec4i> lines;
-    HoughLinesP( edges, lines, 1, CV_PI/180, houghThreshold, houghMinLineLength, houghMaxLineGap);
-    for( size_t i = 0; i < lines.size(); i++ )
-    {
-        line( lineResult, Point(lines[i][0], lines[i][1]),
-            Point(lines[i][2], lines[i][3]), Scalar(0,0,255), 3, 8 );
-    }
-    //Mat edges = removeNoise(flooded);
+
+    addText(lineResult, "Num_lines:", lines.size(), 10, 10);
+    addText(lineResult, "Num_lines:", features.size(), 10, 30);
+    //addText(filteredLineResult, "Num_lines:", filteredLines.size(), 10, 10);
 
 #if ORIGINAL
     imshow("Original", flat_orig);
@@ -268,6 +314,9 @@ void loop(Mat original){
 #endif
 #if LINES 
     imshow("Lines", lineResult);
+#endif
+#if LINES_FILTERED
+    //imshow("Filtered Lines", filteredLineResult);
 #endif
     cv::waitKey(1);
 }
@@ -320,8 +369,10 @@ cv::Mat_<float> getImage(const sensor_msgs::ImageConstPtr& msg){
     return retu;
 }   
 
-void addText(Mat image, string text, double data, int x, int y){ stringstream ss;
-    ss << text << data; putText(image, ss.str(), cvPoint(x, y), FONT_HERSHEY_PLAIN, 0.7, cvScalar(255,0, 0), 1, CV_AA);
+void addText(Mat image, string text, double data, int x, int y){ 
+    stringstream ss;
+    ss << text << data; 
+    putText(image, ss.str(), cvPoint(x, y), FONT_HERSHEY_PLAIN, 0.7, cvScalar(255,0, 0), 1, CV_AA);
 }
 
 
@@ -349,11 +400,25 @@ int main(int argc, char **argv)
 #endif
 #if THRESHOLD 
     namedWindow("Threshold");
-    createTrackbar("noiseThreshold", "Threshold", &noiseThreshold, 255, [](int x, void*){ noiseThreshold= x; });
-    createTrackbar("noiseThreshold2", "Threshold", &noiseThreshold2, 255, [](int x, void*){ noiseThreshold2= x; });
+    createTrackbar("hullThreshold", "Threshold", &hullThreshold, 255, [](int x, void*){ hullThreshold= x; });
+    createTrackbar("dilateIterations", "Threshold", &dilateIterations, 255, [](int x, void*){ dilateIterations= x; });
+
+    createTrackbar("houghRho", "Threshold", &houghRho, 255, [](int x, void*){houghRho = x; });
+    createTrackbar("houghTheta", "Threshold", &houghTheta, 255, [](int x, void*){houghTheta= x; });
+
     createTrackbar("houghThreshold", "Threshold", &houghThreshold, 255, [](int x, void*){ houghThreshold= x; });
     createTrackbar("houghMinLineLength", "Threshold", &houghMinLineLength, 255, [](int x, void*){houghMinLineLength = x; });
     createTrackbar("houghMaxLineGap", "Threshold", &houghMaxLineGap, 255, [](int x, void*){ houghMaxLineGap= x; });
+
+    createTrackbar("houghThickness", "Threshold", &houghThickness, 255, [](int x, void*){ houghThickness= x; });
+
+    createTrackbar("houghFilteredThreshold", "Threshold", &houghFilteredThreshold, 255, [](int x, void*){ houghFilteredThreshold= x; });
+    createTrackbar("houghFilteredMinLineLength", "Threshold", &houghFilteredMinLineLength, 255, [](int x, void*){houghFilteredMinLineLength = x; });
+    createTrackbar("houghFilteredMaxLineGap", "Threshold", &houghFilteredMaxLineGap, 255, [](int x, void*){ houghFilteredMaxLineGap= x; });
+    createTrackbar("erode_iterations", "Threshold", &erode_iterations, 255, [](int x, void*){ erode_iterations= x; });
+
+    createTrackbar("slopeTolerance", "Threshold", &slopeTolerance, 255, [](int x, void*){ slopeTolerance= x; });
+    createTrackbar("interceptTolerance", "Threshold", &interceptTolerance, 255, [](int x, void*){ interceptTolerance= x; });
 
 #endif
 #if DILATED
@@ -368,6 +433,9 @@ int main(int argc, char **argv)
 #endif
 #if LINES 
     namedWindow("Lines");
+#endif
+#if LINES_FILTERED
+    namedWindow("Filtered Lines");
 #endif
 
     while(n.ok ()){
