@@ -15,7 +15,6 @@
 
 #include <math.h>
 
-
 #define ORIGINAL 1
 #define XGRAD 0
 #define YGRAD 0
@@ -57,7 +56,7 @@ int houghFilteredMaxLineGap= 73;
 
 int erode_iterations= 1;
 
-int slopeTolerance = 1;
+int angleTolerance = 1;
 int interceptTolerance= 1;
 
 ros::Publisher distance_pub;
@@ -110,7 +109,7 @@ Mat removeNoise(Mat& image){
 }   
 
 
-Mat sobel(Mat& original){
+Mat sobel(const Mat& original){
     Mat blurred = original.clone();
 
     Mat grad;
@@ -142,27 +141,27 @@ Mat sobel(Mat& original){
     return grad;
 }
 
-Mat getThresholded(Mat& img){
+Mat getThresholded(const Mat& img){
     Mat ret;
     //GaussianBlur(img, img, Size(5, 5), 1, 1, 1); 
     threshold(img, ret, ir_threshold, 1, CV_THRESH_BINARY);
     return ret;
 }   
 
-Mat getDilatedImage(Mat& img){
+Mat getDilatedImage(const Mat& img){
     Mat ret;
     //dilate(InputArray src, OutputArray dst, InputArray kernel, Point anchor=Point(-1,-1), int iterations=1, int borderType=BORDER_CONSTANT, const Scalar& borderValue=morphologyDefaultBorderValue() )
     dilate(img, ret, Mat(), Point(-1, -1), dilateIterations);
     return ret;
 }
 
-vector<Vec4i> doHough(Mat& input,int rho, int numDegrees, int threshold, int minLineLength, int maxLineGap){
+vector<Vec4i> doHough(const Mat& input,int rho, int numDegrees, int threshold, int minLineLength, int maxLineGap){
     vector<Vec4i> lines;
     HoughLinesP( input, lines, rho, CV_PI/180 * numDegrees, threshold, minLineLength, maxLineGap);
     return lines;
 }
 
-Mat showHoughLines(vector<Vec4i> lines, int thickness){
+Mat showHoughLines(const vector<Vec4i>& lines, int thickness){
 
     //Mat lineResult(480, 640, CV_8UC1);
     Mat lineResult = Mat::zeros(480, 640, CV_8UC1);
@@ -177,17 +176,39 @@ Mat showHoughLines(vector<Vec4i> lines, int thickness){
     return lineResult;
 }
 
-bool areFeaturesSame(const Feature& f1, const Feature& f2){
-    return  abs (f1.slope - f2.slope) 
-        < (10.0 / (double)slopeTolerance);
-        /*
-        &&
-            abs (f1.intercept - f2.intercept) 
-            < (10.0 / (double)interceptTolerance);
+Mat showHoughLines(const vector<Feature>& features){
+    //Mat lineResult(480, 640, CV_8UC1);
+    Mat lineResult = Mat::zeros(480, 640, CV_8UC1);
+    //cvtColor(lineResult, lineResult, CV_GRAY2BGR);
+    for( size_t i = 0; i < features.size(); i++ ){
+        //(Mat& img, Point pt1, Point pt2, const Scalar& color, int thickness=1, int lineType=8, int shift=0)
+        line( lineResult,features[i].p1,features[i].p2, Scalar(255,255,255));
+    }
 
-            */
+    return lineResult;
 }
 
+
+//increasing angletolerance would decrease number of
+bool areFeaturesSame(const Feature& f1, const Feature& f2){
+   cout << (atan(f1.slope) - atan(f2.slope))  << endl;
+   return  
+        (abs (atan(f1.slope) - atan(f2.slope)) 
+        < (1.0 / (double)angleTolerance));
+   || 
+        (abs (f1.distance- f2.distance) 
+        < interceptTolerance);
+        
+
+}
+
+
+/**
+ * Checks if feature f is represnted in the provided list of features
+ * @return
+ *  True if no collisions
+ *  False if already exists(collision)
+ */
 bool isFeatureUnique(const vector<Feature>& features, const Feature& f){
 
     for(int i = 0; i< features.size(); i++){
@@ -202,7 +223,9 @@ bool isFeatureUnique(const vector<Feature>& features, const Feature& f){
 vector<Feature> getFeatures(const vector<Vec4i>& lines){
     vector<Feature> features;
 
+    vector<double> slopes;
 
+    // int slopes[features.size()];
     for(size_t i = 0; i<lines.size(); i++){
         Feature f;
 
@@ -219,15 +242,29 @@ vector<Feature> getFeatures(const vector<Vec4i>& lines){
         f.intercept = b;
         f.distance = distance;
 
-        cout << "slope: " << slope << "\tintecept: " << b<< endl;
+        //cout << "slope: " << slope << "\tintecept: " << b<< endl;
+        slopes.push_back(slope);
+        //slopes[i] = slope;
 
         if (isFeatureUnique(features, f)){
             features.push_back(f);
         }
 
     }
-    cout << "DONE!" << endl;
+
+    //show sorted slopes
+    sort(slopes.begin(), slopes.end());
+    for(vector<double>::iterator it=slopes.begin(); it!=slopes.end(); ++it){
+        cout << " "  << atan(*it);
+    }
+    cout << endl;
     return features;
+}
+
+Point getGroundPoint(const Mat& dilated_binary){
+    return Point();
+
+
 }
 
 void loop(Mat original){
@@ -255,7 +292,7 @@ void loop(Mat original){
 
     //floodfill and isolation 
     Mat flooded = dilated.clone();
-    floodFill(flooded, Point(320, 469), Scalar(1));
+    floodFill(flooded, Point(320, 240), Scalar(1));
     //the convex hull we want is just the part that got flooded
     flooded = flooded - dilated;
     dilate(flooded, flooded, Mat(), Point(-1, -1), hullThreshold);
@@ -271,21 +308,23 @@ void loop(Mat original){
                 houghMaxLineGap);
     Mat lineResult = showHoughLines(lines, houghThickness);
 
-    Vector<Feature> features = getFeatures(lines);
+    vector<Feature> features = getFeatures(lines);
+
+    Mat filteredLineResult = showHoughLines(features);
 
     /*
-    vector<Vec4i> filteredLines = 
-        doHough(lineResult, 
-                houghRho, 
-                houghTheta, 
-                houghFilteredThreshold, 
-                houghFilteredMinLineLength, 
-                houghFilteredMaxLineGap);
-    Mat filteredLineResult = showHoughLines(filteredLines, 1);
-    */
+       vector<Vec4i> filteredLines = 
+       doHough(lineResult, 
+       houghRho, 
+       houghTheta, 
+       houghFilteredThreshold, 
+       houghFilteredMinLineLength, 
+       houghFilteredMaxLineGap);
+       Mat filteredLineResult = showHoughLines(filteredLines, 1);
+       */
 
     addText(lineResult, "Num_lines:", lines.size(), 10, 10);
-    addText(lineResult, "Num_lines:", features.size(), 10, 30);
+    addText(filteredLineResult, "Num_lines:", features.size(), 10, 10);
     //addText(filteredLineResult, "Num_lines:", filteredLines.size(), 10, 10);
 
 #if ORIGINAL
@@ -316,7 +355,7 @@ void loop(Mat original){
     imshow("Lines", lineResult);
 #endif
 #if LINES_FILTERED
-    //imshow("Filtered Lines", filteredLineResult);
+    imshow("Filtered Lines", filteredLineResult);
 #endif
     cv::waitKey(1);
 }
@@ -417,7 +456,7 @@ int main(int argc, char **argv)
     createTrackbar("houghFilteredMaxLineGap", "Threshold", &houghFilteredMaxLineGap, 255, [](int x, void*){ houghFilteredMaxLineGap= x; });
     createTrackbar("erode_iterations", "Threshold", &erode_iterations, 255, [](int x, void*){ erode_iterations= x; });
 
-    createTrackbar("slopeTolerance", "Threshold", &slopeTolerance, 255, [](int x, void*){ slopeTolerance= x; });
+    createTrackbar("angleTolerance", "Threshold", &angleTolerance, 255, [](int x, void*){ angleTolerance= x; });
     createTrackbar("interceptTolerance", "Threshold", &interceptTolerance, 255, [](int x, void*){ interceptTolerance= x; });
 
 #endif
