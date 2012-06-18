@@ -15,13 +15,16 @@
 
 #include <math.h>
 
+#define TUNER 1
+
 #define ORIGINAL 1
 #define XGRAD 0
 #define YGRAD 0
-#define GRAD 1
-#define THRESHOLD 1
-#define DILATED 1
+#define GRAD 0
+#define THRESHOLD 0
+#define DILATED 0
 #define FLOOD_FILL 1
+#define FLOOR_ARC 1
 
 using namespace cv;
 using namespace std;
@@ -38,23 +41,11 @@ int divisor = 1;
 //int ir_threshold = 99;
 float ir_threshold = 0.9999999;
 int hullThreshold = 21;
-int dilateIterations = 10;
-int houghRho = 1;
-int houghTheta = 1; //in degrees
-int houghThreshold = 68;
-int houghMinLineLength= 19;
-int houghMaxLineGap= 73;
+int dilateIterations = 13;
 
-int houghThickness= 1;
-
-int houghFilteredThreshold = 68;
-int houghFilteredMinLineLength= 19;
-int houghFilteredMaxLineGap= 73;
-
-int erode_iterations= 1;
-
-int angleTolerance = 1;
-int interceptTolerance= 1;
+int arcRadius = 0;
+int arcHeight = 0;
+int arcHeightminus= 100;
 
 ros::Publisher distance_pub;
 
@@ -133,9 +124,34 @@ Point getGroundPoint(const Mat& dilated_binary){
     return Point();
 }
 
-int getSemicircleHeight(double radius, int x){
-    return sqrt(radius * radius - x * x);
+int getSemicircleHeight(int x){
+    return abs(sqrt(( 320 +arcRadius)*(320 +  arcRadius) - x * x) + arcHeight- arcHeightminus);
 }
+
+Mat getFloorArced(const Mat& flooded){
+//floodfill arc 
+    Mat floor_arc;
+    cvtColor(flooded, floor_arc, CV_GRAY2BGR);
+
+    for(int x = 0; x < 640; x++){
+        Point cartesian = cartesianPoint(Point(x,y));
+        cartesian = Point(cartesian.x, getSemicircleHeight(cartesian.x));
+        Point toDisplay = screenPoint(cartesian);
+
+        int value = readDistance(flooded, toDisplay.x, toDisplay.y);
+        if(value == 0){
+            circle(floor_arc, toDisplay, 3, Scalar(0, 255, 0), -1);
+        } else{
+            circle(floor_arc, toDisplay, 3, Scalar(255, 0, 0), -1);
+        }
+    }
+
+    return floor_arc;
+
+}
+
+
+
 
 
 void loop(Mat original){
@@ -158,16 +174,6 @@ void loop(Mat original){
     cvtColor(flat_dilated, display, CV_GRAY2BGR);
     //cvtColor(dilated, dilated, CV_GRAY2BGR);
 
-    Point cartesian = cartesianPoint(Point(x,y));
-    Point toDisplay = screenPoint(Point(cartesian.x, getSemicircleHeight(320,cartesian.x)));
-    circle(display, toDisplay, 3, Scalar(0, 255, 0), -1);
-    //addText(display, "", readDistance(dilated, x, y), x, y);
-    //addText(display, "", readDistance(dilated, x, y), x, y);
-    stringstream ss;
-    ss << "( " << cartesian.x << " , " << getSemicircleHeight(320, cartesian.x)<< ")"<< 
-        "\t ( " << toDisplay.x << " , " << toDisplay.y << ")" << endl;
-    cout <<  ss.str() << endl;
-    putText(display, ss.str(), cvPoint(toDisplay.x, toDisplay.y), FONT_HERSHEY_PLAIN, 0.7, cvScalar(255,0, 0), 1, CV_AA);
     //cvtColor(flat_dilated, display, CV_GRAY2BGR);
 
     //floodfill and isolation 
@@ -175,6 +181,9 @@ void loop(Mat original){
     floodFill(flooded, Point(320, 240), Scalar(1));
     //the convex hull we want is just the part that got flooded
     flooded = flooded - dilated;
+
+    Mat floor_arc = getFloorArced(flooded);
+
 
 
 #if ORIGINAL
@@ -197,6 +206,9 @@ void loop(Mat original){
 #endif
 #if FLOOD_FILL
     imshow("Flood Fill", flooded);
+#endif
+#if FLOOR_ARC
+    imshow("Floor Arc", floor_arc);
 #endif
     cv::waitKey(1);
 }
@@ -265,6 +277,16 @@ int main(int argc, char **argv)
 
     distance_pub = n.advertise<std_msgs::Float32>("/distance", 1);
     //pub_ = nh_.advertise<std_msgs::Float32>("tracking/normal_distance", 1);
+    //
+#if TUNER
+    namedWindow("Tuner");
+    createTrackbar("dilateIterations", "Tuner", &dilateIterations, 255, [](int x, void*){ dilateIterations= x; });
+
+    createTrackbar("Arc Radius", "Tuner", &arcRadius, 500, [](int x, void*){ arcRadius= x; });
+
+    createTrackbar("Arc Height", "Tuner", &arcHeight, 255, [](int x, void*){ arcHeight= x; });
+    createTrackbar("Arc Height-", "Tuner", &arcHeightminus, 500, [](int x, void*){ arcHeightminus= x; });
+#endif
 
 #if ORIGINAL
     namedWindow("Original");
@@ -280,15 +302,17 @@ int main(int argc, char **argv)
 #endif
 #if THRESHOLD 
     namedWindow("Threshold");
-    createTrackbar("dilateIterations", "Threshold", &dilateIterations, 255, [](int x, void*){ dilateIterations= x; });
 
 #endif
 #if DILATED
     namedWindow("Dilated");
-    setMouseCallback("Dilated", onMouse, 0);
 #endif
 #if FLOOD_FILL
     namedWindow("Flood Fill");
+#endif
+#if FLOOR_ARC
+    namedWindow("Floor Arc");
+    setMouseCallback("Floor Arc", onMouse, 0);
 #endif
 
     while(n.ok ()){
