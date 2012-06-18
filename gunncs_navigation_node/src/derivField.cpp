@@ -22,9 +22,6 @@
 #define THRESHOLD 1
 #define DILATED 1
 #define FLOOD_FILL 1
-#define FLOOD_FILL_EDGES 1
-#define LINES 1
-#define LINES_FILTERED 1
 
 using namespace cv;
 using namespace std;
@@ -80,35 +77,12 @@ void kinectCallBack(const sensor_msgs::ImageConstPtr& msg){
 
 } 
 
-Mat removeNoise(Mat& image){
-    Mat src ;
-    image.convertTo(src, CV_8UC1);
-    Mat ret = src;
-    vector<vector<Point> > contours;
-    ret *=100;
-
-    findContours(src, contours, CV_RETR_LIST, CV_CHAIN_CODE, Point(0, 0));
-    for( int i = 0; i< contours.size(); i++ ){
-        float area = contourArea(contours[i]);
-        //removes shapes with an area less than hullThreshold
-        if(fabs(area) < hullThreshold){
-            //draws black over small things
-            drawContours(ret, contours, i, Scalar(0,0,0), CV_FILLED);
-        } else {
-            //   vector<Rect> br = boundingRect(contours[i]);
-            vector<Point> hull;
-            convexHull(contours[i], hull, CV_CLOCKWISE);
-            vector<vector<Point> > hullcontours;
-            hullcontours.push_back(hull);
-            drawContours(ret, hullcontours, -1, Scalar(255,255,255), CV_FILLED);
-            //drawContours(ret, contours, i, Scalar(255,255,255));
-        }   
-    }   
-
-    return ret;
-}   
-
-
+Point cartesianPoint(const Point& screenPoint){
+    return Point((screenPoint.x - 320), (480 - screenPoint.y));
+}
+Point screenPoint(const Point& cartesianPoint){
+    return Point((cartesianPoint.x + 320), (480 - cartesianPoint.y));
+}
 Mat sobel(const Mat& original){
     Mat blurred = original.clone();
 
@@ -154,118 +128,15 @@ Mat getDilatedImage(const Mat& img){
     dilate(img, ret, Mat(), Point(-1, -1), dilateIterations);
     return ret;
 }
-
-vector<Vec4i> doHough(const Mat& input,int rho, int numDegrees, int threshold, int minLineLength, int maxLineGap){
-    vector<Vec4i> lines;
-    HoughLinesP( input, lines, rho, CV_PI/180 * numDegrees, threshold, minLineLength, maxLineGap);
-    return lines;
-}
-
-Mat showHoughLines(const vector<Vec4i>& lines, int thickness){
-
-    //Mat lineResult(480, 640, CV_8UC1);
-    Mat lineResult = Mat::zeros(480, 640, CV_8UC1);
-    //cvtColor(lineResult, lineResult, CV_GRAY2BGR);
-    for( size_t i = 0; i < lines.size(); i++ ){
-        Point a = Point(lines[i][0], lines[i][1]);
-        Point b = Point(lines[i][2], lines[i][3]);
-        //(Mat& img, Point pt1, Point pt2, const Scalar& color, int thickness=1, int lineType=8, int shift=0)
-        line( lineResult,a,b, Scalar(255,255,255), thickness, 8 );
-    }
     
-    return lineResult;
-}
-
-Mat showHoughLines(const vector<Feature>& features){
-    //Mat lineResult(480, 640, CV_8UC1);
-    Mat lineResult = Mat::zeros(480, 640, CV_8UC1);
-    //cvtColor(lineResult, lineResult, CV_GRAY2BGR);
-    for( size_t i = 0; i < features.size(); i++ ){
-        //(Mat& img, Point pt1, Point pt2, const Scalar& color, int thickness=1, int lineType=8, int shift=0)
-        line( lineResult,features[i].p1,features[i].p2, Scalar(255,255,255));
-    }
-
-    return lineResult;
-}
-
-
-//increasing angletolerance would decrease number of
-bool areFeaturesSame(const Feature& f1, const Feature& f2){
-   cout << (atan(f1.slope) - atan(f2.slope))  << endl;
-   return  
-        (abs (atan(f1.slope) - atan(f2.slope)) 
-        < (1.0 / (double)angleTolerance));
-   || 
-        (abs (f1.distance- f2.distance) 
-        < interceptTolerance);
-        
-
-}
-
-
-/**
- * Checks if feature f is represnted in the provided list of features
- * @return
- *  True if no collisions
- *  False if already exists(collision)
- */
-bool isFeatureUnique(const vector<Feature>& features, const Feature& f){
-
-    for(int i = 0; i< features.size(); i++){
-        if(areFeaturesSame(features[i], f)){
-            return false;
-        }
-    }
-    return true;
-
-}
-
-vector<Feature> getFeatures(const vector<Vec4i>& lines){
-    vector<Feature> features;
-
-    vector<double> slopes;
-
-    // int slopes[features.size()];
-    for(size_t i = 0; i<lines.size(); i++){
-        Feature f;
-
-        Point p1 = Point(lines[i][0], lines[i][1]);
-        Point p2 = Point(lines[i][2], lines[i][3]);
-        double slope = (double) (p2.y - p1.y) / (double)(p2.x - p1.x);
-        //(Mat& img, Point pt1, Point pt2, const Scalar& color, int thickness=1, int lineType=8, int shift=0)
-        double b = (double)p1.y - slope * (double)p1.x;
-        double distance = abs(b) / sqrt(slope * slope + 1);
-
-        f.p1 = p1;
-        f.p2 = p2;
-        f.slope = slope;
-        f.intercept = b;
-        f.distance = distance;
-
-        //cout << "slope: " << slope << "\tintecept: " << b<< endl;
-        slopes.push_back(slope);
-        //slopes[i] = slope;
-
-        if (isFeatureUnique(features, f)){
-            features.push_back(f);
-        }
-
-    }
-
-    //show sorted slopes
-    sort(slopes.begin(), slopes.end());
-    for(vector<double>::iterator it=slopes.begin(); it!=slopes.end(); ++it){
-        cout << " "  << atan(*it);
-    }
-    cout << endl;
-    return features;
-}
-
 Point getGroundPoint(const Mat& dilated_binary){
     return Point();
-
-
 }
+
+int getSemicircleHeight(double radius, int x){
+    return sqrt(radius * radius - x * x);
+}
+
 
 void loop(Mat original){
 
@@ -286,8 +157,17 @@ void loop(Mat original){
     Mat display;
     cvtColor(flat_dilated, display, CV_GRAY2BGR);
     //cvtColor(dilated, dilated, CV_GRAY2BGR);
-    circle(display, Point(x, y), 3, Scalar(0, 255, 0), -1);
-    addText(display, "", readDistance(dilated, x, y), x, y);
+
+    Point cartesian = cartesianPoint(Point(x,y));
+    Point toDisplay = screenPoint(Point(cartesian.x, getSemicircleHeight(320,cartesian.x)));
+    circle(display, toDisplay, 3, Scalar(0, 255, 0), -1);
+    //addText(display, "", readDistance(dilated, x, y), x, y);
+    //addText(display, "", readDistance(dilated, x, y), x, y);
+    stringstream ss;
+    ss << "( " << cartesian.x << " , " << getSemicircleHeight(320, cartesian.x)<< ")"<< 
+        "\t ( " << toDisplay.x << " , " << toDisplay.y << ")" << endl;
+    cout <<  ss.str() << endl;
+    putText(display, ss.str(), cvPoint(toDisplay.x, toDisplay.y), FONT_HERSHEY_PLAIN, 0.7, cvScalar(255,0, 0), 1, CV_AA);
     //cvtColor(flat_dilated, display, CV_GRAY2BGR);
 
     //floodfill and isolation 
@@ -295,37 +175,7 @@ void loop(Mat original){
     floodFill(flooded, Point(320, 240), Scalar(1));
     //the convex hull we want is just the part that got flooded
     flooded = flooded - dilated;
-    dilate(flooded, flooded, Mat(), Point(-1, -1), hullThreshold);
 
-    Mat edges = sobel(flooded)*100;
-
-    vector<Vec4i> lines = 
-        doHough(edges,
-                houghRho, 
-                houghTheta, 
-                houghThreshold, 
-                houghMinLineLength, 
-                houghMaxLineGap);
-    Mat lineResult = showHoughLines(lines, houghThickness);
-
-    vector<Feature> features = getFeatures(lines);
-
-    Mat filteredLineResult = showHoughLines(features);
-
-    /*
-       vector<Vec4i> filteredLines = 
-       doHough(lineResult, 
-       houghRho, 
-       houghTheta, 
-       houghFilteredThreshold, 
-       houghFilteredMinLineLength, 
-       houghFilteredMaxLineGap);
-       Mat filteredLineResult = showHoughLines(filteredLines, 1);
-       */
-
-    addText(lineResult, "Num_lines:", lines.size(), 10, 10);
-    addText(filteredLineResult, "Num_lines:", features.size(), 10, 10);
-    //addText(filteredLineResult, "Num_lines:", filteredLines.size(), 10, 10);
 
 #if ORIGINAL
     imshow("Original", flat_orig);
@@ -348,15 +198,6 @@ void loop(Mat original){
 #if FLOOD_FILL
     imshow("Flood Fill", flooded);
 #endif
-#if FLOOD_FILL_EDGES
-    imshow("Flood Fill Edges", edges );
-#endif
-#if LINES 
-    imshow("Lines", lineResult);
-#endif
-#if LINES_FILTERED
-    imshow("Filtered Lines", filteredLineResult);
-#endif
     cv::waitKey(1);
 }
 
@@ -369,7 +210,7 @@ void onMouse( int event, int x_pos, int y_pos, int flags, void* param){
     stringstream str;
     str << "mouse event:   x" << x_pos << "\ty:" << y << "\tevent: " << event<< endl;
     //ROS_INFO(str.str());
-    cout << str.str() << endl;
+    //cout << str.str() << endl;
 }
 
 
@@ -439,25 +280,7 @@ int main(int argc, char **argv)
 #endif
 #if THRESHOLD 
     namedWindow("Threshold");
-    createTrackbar("hullThreshold", "Threshold", &hullThreshold, 255, [](int x, void*){ hullThreshold= x; });
     createTrackbar("dilateIterations", "Threshold", &dilateIterations, 255, [](int x, void*){ dilateIterations= x; });
-
-    createTrackbar("houghRho", "Threshold", &houghRho, 255, [](int x, void*){houghRho = x; });
-    createTrackbar("houghTheta", "Threshold", &houghTheta, 255, [](int x, void*){houghTheta= x; });
-
-    createTrackbar("houghThreshold", "Threshold", &houghThreshold, 255, [](int x, void*){ houghThreshold= x; });
-    createTrackbar("houghMinLineLength", "Threshold", &houghMinLineLength, 255, [](int x, void*){houghMinLineLength = x; });
-    createTrackbar("houghMaxLineGap", "Threshold", &houghMaxLineGap, 255, [](int x, void*){ houghMaxLineGap= x; });
-
-    createTrackbar("houghThickness", "Threshold", &houghThickness, 255, [](int x, void*){ houghThickness= x; });
-
-    createTrackbar("houghFilteredThreshold", "Threshold", &houghFilteredThreshold, 255, [](int x, void*){ houghFilteredThreshold= x; });
-    createTrackbar("houghFilteredMinLineLength", "Threshold", &houghFilteredMinLineLength, 255, [](int x, void*){houghFilteredMinLineLength = x; });
-    createTrackbar("houghFilteredMaxLineGap", "Threshold", &houghFilteredMaxLineGap, 255, [](int x, void*){ houghFilteredMaxLineGap= x; });
-    createTrackbar("erode_iterations", "Threshold", &erode_iterations, 255, [](int x, void*){ erode_iterations= x; });
-
-    createTrackbar("angleTolerance", "Threshold", &angleTolerance, 255, [](int x, void*){ angleTolerance= x; });
-    createTrackbar("interceptTolerance", "Threshold", &interceptTolerance, 255, [](int x, void*){ interceptTolerance= x; });
 
 #endif
 #if DILATED
@@ -466,15 +289,6 @@ int main(int argc, char **argv)
 #endif
 #if FLOOD_FILL
     namedWindow("Flood Fill");
-#endif
-#if FLOOD_FILL
-    namedWindow("Flood Fill Edges");
-#endif
-#if LINES 
-    namedWindow("Lines");
-#endif
-#if LINES_FILTERED
-    namedWindow("Filtered Lines");
 #endif
 
     while(n.ok ()){
