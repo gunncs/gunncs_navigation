@@ -43,7 +43,7 @@ float ir_threshold = 0.9999999;
 int hullThreshold = 21;
 int dilateIterations = 13;
 
-int arcRadius = 0;
+int arcRadius = 88;
 int arcHeight = 0;
 int arcHeightminus= 100;
 
@@ -54,11 +54,9 @@ sensor_msgs::CvBridge img_bridge_;
 cv::Mat orig(640, 480, CV_8UC1);
 
 struct Feature {
-    Point p1;
-    Point p2;
-    double slope;
-    double distance;
-    double intercept;
+    Point left;
+    Point right;
+    Point midpoint;
 };
 
 void kinectCallBack(const sensor_msgs::ImageConstPtr& msg){
@@ -119,7 +117,7 @@ Mat getDilatedImage(const Mat& img){
     dilate(img, ret, Mat(), Point(-1, -1), dilateIterations);
     return ret;
 }
-    
+
 Point getGroundPoint(const Mat& dilated_binary){
     return Point();
 }
@@ -128,8 +126,18 @@ int getSemicircleHeight(int x){
     return abs(sqrt(( 320 +arcRadius)*(320 +  arcRadius) - x * x) + arcHeight- arcHeightminus);
 }
 
+Mat showFeatures(const Mat& flooded, const vector<Feature>& features){
+    Mat retu = flooded.clone();
+    for (size_t i = 0; i<features.size(); i++){
+        line(retu, features[i].left, features[i].right, Scalar(0,0,255));
+    }
+    return retu;
+}
+
+
+
 Mat getFloorArced(const Mat& flooded){
-//floodfill arc 
+    //floodfill arc 
     Mat floor_arc;
     cvtColor(flooded, floor_arc, CV_GRAY2BGR);
 
@@ -140,9 +148,9 @@ Mat getFloorArced(const Mat& flooded){
 
         int value = readDistance(flooded, toDisplay.x, toDisplay.y);
         if(value == 0){
-            circle(floor_arc, toDisplay, 3, Scalar(0, 255, 0), -1);
+            circle(floor_arc, toDisplay, 1, Scalar(0, 255, 0), -1);
         } else{
-            circle(floor_arc, toDisplay, 3, Scalar(255, 0, 0), -1);
+            circle(floor_arc, toDisplay, 1, Scalar(255, 0, 0), -1);
         }
     }
 
@@ -151,6 +159,61 @@ Mat getFloorArced(const Mat& flooded){
 }
 
 
+vector<Feature> extractFeatures(const Mat& ground){
+
+    Mat floor_arc = ground.clone();
+    vector<Feature> features;
+
+    float value = 0;
+    Point left = Point(0,0);
+
+    for(int x = 0; x < 640; x++){
+        Point cartesian = cartesianPoint(Point(x,0));
+        cartesian = Point(cartesian.x, getSemicircleHeight(cartesian.x));
+        Point toDisplay = screenPoint(cartesian);
+        float newValue = ground.at<float>(toDisplay);
+        if(value == 0 && newValue == 1){
+            left = toDisplay;
+        }
+        if (value == 1 && newValue == 0){
+            Feature newFeature;
+            newFeature.left = left;
+            newFeature.right = toDisplay;
+            newFeature.midpoint = Point(
+                    (left.x + toDisplay.x)/2,
+                    (left.y + toDisplay.y)/2);
+
+            features.push_back(newFeature);
+        }
+        value = newValue;
+
+        /*
+           int value = readDistance(flooded, toDisplay.x, toDisplay.y);
+           if(value == 0){
+           circle(floor_arc, toDisplay, 1, Scalar(0, 255, 0), -1);
+           } else{
+           circle(floor_arc, toDisplay, 1, Scalar(255, 0, 0), -1);
+           }
+           */
+    }
+
+    //if we get no edge at the end
+    Point cartesian = cartesianPoint(Point(639,0));
+    cartesian = Point(cartesian.x, getSemicircleHeight(cartesian.x));
+    Point toDisplay = screenPoint(cartesian);
+    float newValue = ground.at<float>(toDisplay);
+    if (newValue == 1){
+        Feature newFeature;
+        newFeature.left = left;
+        newFeature.right = toDisplay;
+        newFeature.midpoint = Point(
+                (left.x + toDisplay.x)/2,
+                (left.y + toDisplay.y)/2);
+
+        features.push_back(newFeature);
+    }
+    return features;
+}
 
 
 
@@ -182,7 +245,11 @@ void loop(Mat original){
     //the convex hull we want is just the part that got flooded
     flooded = flooded - dilated;
 
+    vector<Feature> features = extractFeatures(flooded);
+
     Mat floor_arc = getFloorArced(flooded);
+
+    floor_arc = showFeatures(floor_arc, features);
 
 
 
