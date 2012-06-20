@@ -22,7 +22,7 @@
 #define YGRAD 0
 #define GRAD 0
 #define THRESHOLD 0
-#define DILATED 0
+#define DILATED 1
 #define FLOOD_FILL 1
 #define FLOOR_ARC 1
 
@@ -118,6 +118,10 @@ Mat getDilatedImage(const Mat& img){
     return ret;
 }
 
+/**
+ * Gets a pont that is guaranteed to be on the ground plane
+ * Used by flood fill operation
+ */
 Point getGroundPoint(const Mat& dilated_binary){
     return Point();
 }
@@ -241,7 +245,7 @@ void loop(Mat original){
 
     //floodfill and isolation 
     Mat flooded = dilated.clone();
-    floodFill(flooded, Point(320, 240), Scalar(1));
+    floodFill(flooded, Point(320, 479), Scalar(1));
     //the convex hull we want is just the part that got flooded
     flooded = flooded - dilated;
 
