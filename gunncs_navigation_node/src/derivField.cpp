@@ -47,7 +47,7 @@ int arcRadius = 88;
 int arcHeight = 0;
 int arcHeightminus= 100;
 
-ros::Publisher distance_pub;
+ros::Publisher center_pub;
 
 
 sensor_msgs::CvBridge img_bridge_;
@@ -126,6 +126,7 @@ Point getGroundPoint(const Mat& dilated_binary){
     return Point();
 }
 
+//in cartesian
 int getSemicircleHeight(int x){
     return abs(sqrt(( 320 +arcRadius)*(320 +  arcRadius) - x * x) + arcHeight- arcHeightminus);
 }
@@ -133,7 +134,7 @@ int getSemicircleHeight(int x){
 Mat showFeatures(const Mat& flooded, const vector<Feature>& features){
     Mat retu = flooded.clone();
     for (size_t i = 0; i<features.size(); i++){
-        line(retu, features[i].left, features[i].right, Scalar(0,0,255));
+        line(retu, screenPoint(features[i].left), screenPoint(features[i].right), Scalar(0,0,255));
     }
     return retu;
 }
@@ -172,20 +173,26 @@ vector<Feature> extractFeatures(const Mat& ground){
     Point left = Point(0,0);
 
     for(int x = 0; x < 640; x++){
-        Point cartesian = cartesianPoint(Point(x,0));
-        cartesian = Point(cartesian.x, getSemicircleHeight(cartesian.x));
-        Point toDisplay = screenPoint(cartesian);
+        Point toDisplay  = cartesianPoint(Point(x,0));
+        toDisplay = screenPoint(Point(toDisplay.x, getSemicircleHeight(toDisplay.x)));
+        Point cartesian = cartesianPoint(toDisplay);
+        /*
+        toDisplay = Point(toDisplay.x, getSemicircleHeight(toDisplay.x));
+        toDisplay = screenPoint(toDisplay);
+        float newValue = ground.at<float>(toDisplay);
+        float newValue = ground.at<float>(toDisplay);
+        */
         float newValue = ground.at<float>(toDisplay);
         if(value == 0 && newValue == 1){
-            left = toDisplay;
+            left = cartesian;
         }
         if (value == 1 && newValue == 0){
             Feature newFeature;
             newFeature.left = left;
-            newFeature.right = toDisplay;
+            newFeature.right = cartesian;
             newFeature.midpoint = Point(
-                    (left.x + toDisplay.x)/2,
-                    (left.y + toDisplay.y)/2);
+                    (left.x + cartesian.x)/2,
+                    (left.y + cartesian.y)/2);
 
             features.push_back(newFeature);
         }
@@ -200,22 +207,28 @@ vector<Feature> extractFeatures(const Mat& ground){
            }
            */
     }
-
-    //if we get no edge at the end
-    Point cartesian = cartesianPoint(Point(639,0));
-    cartesian = Point(cartesian.x, getSemicircleHeight(cartesian.x));
-    Point toDisplay = screenPoint(cartesian);
+    Point toDisplay  = cartesianPoint(Point(639,0));
+    toDisplay = screenPoint(Point(toDisplay.x, getSemicircleHeight(toDisplay.x)));
+    Point cartesian = cartesianPoint(toDisplay);
+    /*
+       toDisplay = Point(toDisplay.x, getSemicircleHeight(toDisplay.x));
+       toDisplay = screenPoint(toDisplay);
+       float newValue = ground.at<float>(toDisplay);
+       float newValue = ground.at<float>(toDisplay);
+       */
     float newValue = ground.at<float>(toDisplay);
-    if (newValue == 1){
+    if (newValue == 1 ){
         Feature newFeature;
         newFeature.left = left;
-        newFeature.right = toDisplay;
+        newFeature.right = cartesian;
         newFeature.midpoint = Point(
-                (left.x + toDisplay.x)/2,
-                (left.y + toDisplay.y)/2);
+                (left.x + cartesian.x)/2,
+                (left.y + cartesian.y)/2);
 
         features.push_back(newFeature);
     }
+
+    //if we get no edge at the end
     return features;
 }
 
@@ -250,6 +263,8 @@ void loop(Mat original){
     flooded = flooded - dilated;
 
     vector<Feature> features = extractFeatures(flooded);
+    //std_msgs::Float32 point;
+    //point.data = features[0].midpoint
 
     Mat floor_arc = getFloorArced(flooded);
 
@@ -346,7 +361,7 @@ int main(int argc, char **argv)
     ros::NodeHandle n;
     ros::Subscriber sub = n.subscribe("/camera/depth/image_raw", 1, kinectCallBack);      
 
-    distance_pub = n.advertise<std_msgs::Float32>("/distance", 1);
+    center_pub = n.advertise<std_msgs::Float32>("/gunncs/center", 1);
     //pub_ = nh_.advertise<std_msgs::Float32>("tracking/normal_distance", 1);
     //
 #if TUNER
