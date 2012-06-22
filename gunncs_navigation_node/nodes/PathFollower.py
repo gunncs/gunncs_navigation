@@ -24,8 +24,9 @@ PathFollower.py commands the base to maintain centered in the lane
 TUNING = True
 
 SETPOINT = 0
+LINEAR_SPEED = 20/1000.0
 
-KP = 0
+KP = 99.0/10000.0
 KI = 0 
 KD = 0 
 
@@ -73,13 +74,14 @@ def command(pidresult):
     '''
     commands wall angle with the pid result
     '''
-    global cvPub, twistPub
+    global cvPub, twistPub, LINEAR_SPEED
     cv_msg = Float32()
     cv_msg.data = pidresult
     cvPub.publish(cv_msg)
 
     twist_msg = Twist()
-    twist_msg.linear.x = pidresult
+    twist_msg.linear.x = LINEAR_SPEED
+    twist_msg.angular.z = pidresult
     twistPub.publish(twist_msg)
 
 
@@ -114,28 +116,32 @@ class MyPanel(wx.Panel):
         # wx.SL_AUTOTICKS  displays tick marks
         # wx.SL_LABELS  displays minimum, maximum and value labels
         # initial value = 50, min value = 0, max value = 100
-        self.pslider = wx.Slider(self, -1, 0, -1000, 1000, (10, 10), (600, 50),
+        self.pslider = wx.Slider(self, -1, 99, -1000, 1000, (10, 10), (600, 50),
                 wx.SL_HORIZONTAL | wx.SL_AUTOTICKS | wx.SL_LABELS)
         self.islider= wx.Slider(self, -1, 0, -1000, 1000, (10, 100), (600, 50),
                 wx.SL_HORIZONTAL | wx.SL_AUTOTICKS | wx.SL_LABELS)
         self.dslider = wx.Slider(self, -1, 0, -1000, 1000, (10, 200), (600, 50),
                 wx.SL_HORIZONTAL | wx.SL_AUTOTICKS | wx.SL_LABELS) 
+        self.sslider = wx.Slider(self, -1, 20, -1000, 1000, (10, 300), (600, 50),
+                wx.SL_HORIZONTAL | wx.SL_AUTOTICKS | wx.SL_LABELS) 
 
         self.plabel = wx.StaticText(self, wx.ID_ANY, label="kp", pos=(10, 10))
         self.ilabel = wx.StaticText(self, wx.ID_ANY, label="ki", pos=(10, 100))
         self.dlabel = wx.StaticText(self, wx.ID_ANY, label="kd", pos=(10, 200))
+        self.slabel = wx.StaticText(self, wx.ID_ANY, label="s", pos=(10, 300))
         self.setpointlabel = wx.StaticText(self, wx.ID_ANY, label="setpoint", pos=(10, 300))
         # respond to changes in slider position ...
         self.Bind(wx.EVT_SLIDER, self.sliderUpdate)
 
     def sliderUpdate(self, event):
-        global KP, KD, KI, pid
+        global KP, KD, KI, pid, LINEAR_SPEED
 
         #pidUpdate(self.pslider.GetValue())
         #print (self.pslider.GetValue())/10000.0
         KP= self.pslider.GetValue()/10000.0
         KI= self.islider.GetValue()/10000.0
         KD= self.dslider.GetValue()/10000.0
+        LINEAR_SPEED = self.sslider.GetValue()/1000.0;
         #print "P:", KP, "I:", KI, "D:,", KD,  "sp:", PIXEL_SETPOI
 
         #KP = 0.6*KU
