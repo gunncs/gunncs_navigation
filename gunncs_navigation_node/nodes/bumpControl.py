@@ -14,6 +14,51 @@ DIST_CELL_CENTER_TO_WALL = .25
 LINEAR_SPEED = 0.5
 TURNWISE_SPEED = 0.5
 SLEEPYTIME = 0.01
+WALL_UNKNOWN = 1
+WALL_BLOCKED = 1
+WALL_OPEN = 2
+
+def explore(): #do right wall following while generating a map
+    horizontalWalls = [[0 for x in range(40)]for x in range(40)]
+    verticalWalls = [[0 for x in range(40)]for x in range(40)]
+    currentCellX = 20
+    currentCellY = 20
+    virtualTheta = 0 #0,90,180,270 are the only allowed values
+    finished = false
+    didBump = false
+    while (!finished):
+    	didBump = !investigateWall()
+    	if (!didBump):
+		    if (virtualTheta = 0):
+		    	horizontalWalls[currentCellX][currentCellY] = WALL_OPEN
+		    	currentCellY-=1
+			elif (virtualTheta = 90):
+				verticalWalls[currentCellX][currentCellY] = WALL_OPEN
+				currentCellX-=1
+			elif (virtualTheta = 180):
+				horizontalWalls[currentCellX][currentCellY+1] = WALL_OPEN
+				currentCellY+=1
+			elif (virtualTheta = 270):
+				verticalWalls[currentCellX+1][currentCellY] = WALL_OPEN
+				currentCellX+=1
+			turnRight();
+			virtualTheta+=270;virtualTheta%=360
+		else:
+			if (virtualTheta = 0):
+		    	horizontalWalls[currentCellX][currentCellY] = WALL_BLOCKED
+		    	currentCellY-=1
+	    	elif (virtualTheta = 90):
+	    		verticalWalls[currentCellX][currentCellY] = WALL_BLOCKED
+	    		currentCellX-=1
+	    	elif (virtualTheta = 180):
+	    		horizontalWalls[currentCellX][currentCellY+1] = WALL_BLOCKED
+	    		currentCellY+=1
+	    	elif (virtualTheta = 270):
+				verticalWalls[currentCellX+1][currentCellY] = WALL_BLOCKED
+				currentCellX+=1
+			turnLeft();
+			virtualTheta+=270;virtualTheta%=360
+
 
 '''
 Publishes an odom frame im meters and degrees '''
