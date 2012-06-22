@@ -9,8 +9,8 @@ import math
 from nav_msgs.msg import *
 from geometry_msgs.msg import *
 from turtlebot_node.msg import *
-DIST_BT_CELLS = 1
-DIST_CELL_CENTER_TO_WALL = 1
+DIST_BT_CELLS = .5
+DIST_CELL_CENTER_TO_WALL = .25
 LINEAR_SPEED = 0.5
 TURNWISE_SPEED = 0.5
 SLEEPYTIME = 0.01
@@ -57,7 +57,7 @@ def moveBackward(requestedDistance):
     msg.linear.x = 0
     pub.publish(msg)
 
-def investigateWall(): #returns false if we returned to our current cell
+def investigateDirection(): #returns false if we returned to our current cell
     bumped = not moveForward(DIST_BT_CELLS)
     if (bumped): 
         moveBackward(DIST_CELL_CENTER_TO_WALL)
@@ -122,11 +122,28 @@ def main():
         rospy.loginfo("waiting to receive odom...")
         rospy.sleep(0.01)
 
-    result = moveBackward(.5)
-    result = moveForward(.5)
-    while not rospy.is_shutdown():
+    #result = moveBackward(.5)
+    #result = moveForward(.5)
+    #investigateDirection()
+    success = moveForward(.5)
+    if not success:
+        moveBackward(.25)
+        turnLeft()
+    else:
+        turnRight()
+
+
+    #while not rospy.is_shutdown():
+        '''
+        turnRight()
+        success = moveForward(.5)
+        if not success:
+            moveBackward(.25)
+            turnleft();
+
+        '''
         #rospy.loginfo(bumped)
-        rospy.sleep(0.01)
+        #rospy.sleep(0.01)
         #turn right
         #if bump, return back to old cell
         #
