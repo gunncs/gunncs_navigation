@@ -14,9 +14,7 @@ include_directories(${wxWidgets_INCLUDE_DIRS})
 
 find_package (VTK REQUIRED)
 include (${VTK_USE_FILE})
-
-#include library for pcl, corrects bug in fuerte.
-#https://code.ros.org/trac/ros-pkg/ticket/5419
+#include library for pcl, corrects bug in fuerte.  #https://code.ros.org/trac/ros-pkg/ticket/5419
 #include_directories("/usr/include/vtk-5.8")
 #include("/opt/ros/fuerte/share/pcl-1.5/PCLConfigVersion.cmake")
 #include("/opt/ros/fuerte/share/pcl-1.5/PCLConfig.cmake")
@@ -68,6 +66,8 @@ rosbuild_add_executable(pclGroundDetect src/pclGroundDetect.cpp)
 #rosbuild_add_executable(extract_indicies src/extract_indicies.cpp)
 
 rosbuild_add_executable(pidDistanceDemo src/pidDistanceDemo.cpp)
+rosbuild_add_executable(derivField src/derivField.cpp)
+#rosbuild_add_executable(canny src/ocv_canny.cpp)
 #rosbuild_add_executable(test_shapes src/test_shapes.cpp)
 
 #rosbuild_add_executable(ransac src/ransac.cpp)

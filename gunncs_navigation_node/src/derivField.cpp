@@ -172,7 +172,7 @@ Mat getFloorArced(const Mat& flooded){
 }
 
 
-vector<Feature> extractFeatures(const Mat& ground){
+vector<Feature> extractFeatures(const Mat& ground, int height){
 
     Mat floor_arc = ground.clone();
     vector<Feature> features;
@@ -182,7 +182,7 @@ vector<Feature> extractFeatures(const Mat& ground){
 
     for(int x = 0; x < 640; x++){
         Point toDisplay  = cartesianPoint(Point(x,0));
-        toDisplay = screenPoint(Point(toDisplay.x, getSemicircleHeight(toDisplay.x)));
+        toDisplay = screenPoint(Point(toDisplay.x, getSemicircleHeight(toDisplay.x, height)));
         Point cartesian = cartesianPoint(toDisplay);
         /*
         toDisplay = Point(toDisplay.x, getSemicircleHeight(toDisplay.x));
@@ -248,19 +248,14 @@ vector<Feature> extractFeatures(const Mat& ground){
 
 vector<Feature> filterSmall(vector<Feature>& features, int threshold){
 
-    vector<Feature> retu;
-    for(size_t i = 0; i > features.size(); i++){
-        /*
+    for(std::vector<Feature>::size_type i = features.size() - 1; 
+            i != (std::vector<Feature>::size_type) -1; i--) {
+        /* std::cout << someVector[i]; ... */
         if(features[i].distance < threshold){
-            //features.erase(features.begin()+i);
-        }else{
-            retu.push_back(features[i]);
+            features.erase(features.begin()+i);
         }
-        */
-        retu.push_back(features[i]);
-
     }
-    return retu;
+    return features;
 }
 
 
@@ -294,8 +289,9 @@ void loop(Mat original){
     //the convex hull we want is just the part that got flooded
     flooded = flooded - dilated;
 
-    vector<Feature> features = extractFeatures(flooded);
-    //features = filterSmall(features, 0);
+    vector<Feature> featuresSmall = extractFeatures(flooded);
+    features = filterSmall(features, 100);
+    //for straight wall following
     if(features.size() >= 1){
         std_msgs::Float32 point;
         point.data = features[0].midpoint.x;
@@ -304,7 +300,6 @@ void loop(Mat original){
     }
 
     Mat floor_arc = getFloorArced(flooded);
-
     floor_arc = showFeatures(floor_arc, features);
 
 
