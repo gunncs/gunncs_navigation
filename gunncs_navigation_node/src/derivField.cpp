@@ -68,10 +68,10 @@ void kinectCallBack(const sensor_msgs::ImageConstPtr& msg){
 } 
 
 Point cartesianPoint(const Point& screenPoint){
-    return Point((screenPoint.x - 320), (480 - screenPoint.y));
+    return Point((screenPoint.x - 320), (240- screenPoint.y));
 }
 Point screenPoint(const Point& cartesianPoint){
-    return Point((cartesianPoint.x + 320), (480 - cartesianPoint.y));
+    return Point((cartesianPoint.x + 320), (240 - cartesianPoint.y));
 }
 Mat sobel(const Mat& original){
     Mat blurred = original.clone();
@@ -134,9 +134,9 @@ Point getGroundPoint(const Mat& dilated_binary){
 }
 
 //in cartesian
-int getSemicircleHeight(int x){
-    //return abs(sqrt(( 320 +arcRadius)*(320 +  arcRadius) - x * x) + arcHeight- arcHeightminus);
-    return -(420.0/102400.0)* (x * x) + 420.0;
+int getArcFunction(double x, double mult, double height){
+    return mult * sqrt( (height * height) - (x * x));
+    //return -(420.0/102400.0)* (x * x) + 420.0;
 }
 
 Mat showFeatures(const Mat& flooded, const vector<Feature>& features){
@@ -149,21 +149,27 @@ Mat showFeatures(const Mat& flooded, const vector<Feature>& features){
 
 
 
-Mat getFloorArced(const Mat& flooded){
+Mat getFloorArced(const Mat& flooded, int height){
     //floodfill arc 
     Mat floor_arc;
     cvtColor(flooded, floor_arc, CV_GRAY2BGR);
 
-    for(int x = 0; x < 640; x++){
-        Point cartesian = cartesianPoint(Point(x,y));
-        cartesian = Point(cartesian.x, getSemicircleHeight(cartesian.x));
-        Point toDisplay = screenPoint(cartesian);
 
-        int value = readDistance(flooded, toDisplay.x, toDisplay.y);
-        if(value == 0){
-            circle(floor_arc, toDisplay, 1, Scalar(0, 255, 0), -1);
-        } else{
-            circle(floor_arc, toDisplay, 1, Scalar(255, 0, 0), -1);
+    for(double mult = -1.0; mult <= 1.0; mult+=2){
+        for(int x = 320-height; x < 320 + height; x++){
+            Point toDisplay  = cartesianPoint(Point(x,0));
+            toDisplay = screenPoint(
+                    Point(
+                        toDisplay.x, 
+                        getArcFunction(toDisplay.x, mult, height)));
+            Point cartesian = cartesianPoint(toDisplay);
+
+            int value = readDistance(flooded, toDisplay.x, toDisplay.y);
+            if(value == 0){
+                circle(floor_arc, toDisplay, 1, Scalar(0, 255, 0), -1);
+            } else{
+                circle(floor_arc, toDisplay, 1, Scalar(255, 0, 0), -1);
+            }
         }
     }
 
@@ -182,14 +188,14 @@ vector<Feature> extractFeatures(const Mat& ground, int height){
 
     for(int x = 0; x < 640; x++){
         Point toDisplay  = cartesianPoint(Point(x,0));
-        toDisplay = screenPoint(Point(toDisplay.x, getSemicircleHeight(toDisplay.x, height)));
+        toDisplay = screenPoint(Point(toDisplay.x, getArcFunction(toDisplay.x, 1.0, height)));
         Point cartesian = cartesianPoint(toDisplay);
         /*
-        toDisplay = Point(toDisplay.x, getSemicircleHeight(toDisplay.x));
-        toDisplay = screenPoint(toDisplay);
-        float newValue = ground.at<float>(toDisplay);
-        float newValue = ground.at<float>(toDisplay);
-        */
+           toDisplay = Point(toDisplay.x, getArcFunction(toDisplay.x));
+           toDisplay = screenPoint(toDisplay);
+           float newValue = ground.at<float>(toDisplay);
+           float newValue = ground.at<float>(toDisplay);
+           */
         float newValue = ground.at<float>(toDisplay);
         if(value == 0 && newValue == 1){
             left = cartesian;
@@ -219,10 +225,10 @@ vector<Feature> extractFeatures(const Mat& ground, int height){
            */
     }
     Point toDisplay  = cartesianPoint(Point(639,0));
-    toDisplay = screenPoint(Point(toDisplay.x, getSemicircleHeight(toDisplay.x)));
+    toDisplay = screenPoint(Point(toDisplay.x, getArcFunction(toDisplay.x, 1.0,  height)));
     Point cartesian = cartesianPoint(toDisplay);
     /*
-       toDisplay = Point(toDisplay.x, getSemicircleHeight(toDisplay.x));
+       toDisplay = Point(toDisplay.x, getArcFunction(toDisplay.x));
        toDisplay = screenPoint(toDisplay);
        float newValue = ground.at<float>(toDisplay);
        float newValue = ground.at<float>(toDisplay);
@@ -289,18 +295,20 @@ void loop(Mat original){
     //the convex hull we want is just the part that got flooded
     flooded = flooded - dilated;
 
-    vector<Feature> featuresSmall = extractFeatures(flooded);
-    features = filterSmall(features, 100);
+    /*
+       vector<Feature> features= extractFeatures(flooded, 420);
+       features = filterSmall(features, 100);
     //for straight wall following
     if(features.size() >= 1){
-        std_msgs::Float32 point;
-        point.data = features[0].midpoint.x;
-        cout << features[0].midpoint.x << endl;
-        center_pub.publish(point);
+    std_msgs::Float32 point;
+    point.data = features[0].midpoint.x;
+    cout << features[0].midpoint.x << endl;
+    center_pub.publish(point);
     }
+    */
 
-    Mat floor_arc = getFloorArced(flooded);
-    floor_arc = showFeatures(floor_arc, features);
+    Mat floor_arc = getFloorArced(flooded, 240);
+    //floor_arc = showFeatures(floor_arc, features);
 
 
 
