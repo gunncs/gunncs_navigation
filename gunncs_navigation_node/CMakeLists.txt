@@ -68,6 +68,8 @@ rosbuild_add_executable(pclGroundDetect src/pclGroundDetect.cpp)
 #rosbuild_add_executable(extract_indicies src/extract_indicies.cpp)
 
 rosbuild_add_executable(pidDistanceDemo src/pidDistanceDemo.cpp)
+rosbuild_add_executable(derivField src/derivField.cpp)
+
 #rosbuild_add_executable(test_shapes src/test_shapes.cpp)
 
 #rosbuild_add_executable(ransac src/ransac.cpp)

@@ -194,7 +194,7 @@ bool areFeaturesSame(const Feature& f1, const Feature& f2){
    cout << (atan(f1.slope) - atan(f2.slope))  << endl;
    return  
         (abs (atan(f1.slope) - atan(f2.slope)) 
-        < (1.0 / (double)angleTolerance));
+        < (1.0 / (double)angleTolerance))
    || 
         (abs (f1.distance- f2.distance) 
         < interceptTolerance);
