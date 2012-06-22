@@ -9,6 +9,11 @@ import math
 from nav_msgs.msg import *
 from geometry_msgs.msg import *
 from turtlebot_node.msg import *
+DIST_BT_CELLS = 1
+DIST_CELL_CENTER_TO_WALL = 1
+LINEAR_SPEED = 0.5
+TURNWISE_SPEED = 0.5
+SLEEPYTIME = 0.01
 
 '''
 Publishes an odom frame im meters and degrees
@@ -19,6 +24,44 @@ def poseChange(data):
     y = data.y
     theta = data.theta
 
+def moveForward(requestedDistance): #returns false if bump sensor is triggered
+    global x, y,bumped
+    oldx = x
+    oldy = y
+    distance = 0
+    movedYet = False
+    msg = Twist()
+    msg.linear.x = LINEAR_SPEED
+    pub.publish(msg)
+    while (distance < requestedDistance):
+	if(bumped is False and not movedYet):
+	    movedYet = True
+        pub.publish(msg)
+        distance = math.sqrt( (oldx - x) * (oldx - x) + (oldy - y) * (oldy - y))
+        rospy.sleep(SLEEPYTIME)
+        if (bumped and movedYet):
+            msg.linear.x = 0
+            pub.publish(msg)
+            return False
+    return True
+
+def moveBackward(requestedDistance):
+    global x, y
+    oldx = x
+    oldy = y
+    distance = 0
+    msg = Twist()
+    msg.linear.x = -LINEAR_SPEED
+    while (distance < requestedDistance):
+        pub.publish(msg)
+        distance = math.sqrt( (oldx - x) * (oldx - x) + (oldy - y) * (oldy - y))
+        rospy.sleep(SLEEPYTIME)
+
+def investigateWall(): #returns false if we returned to our current cell
+    bumped = not moveForward(DIST_BT_CELLS)
+    if (bumped): 
+        moveBackward(DIST_CELL_CENTER_TO_WALL)
+    return bumped
 
 def botStateChanged(data):
     global bumped
@@ -28,14 +71,14 @@ def turnRight():
     global theta, pub
     originalTheta = theta;
     msg = Twist()
-    msg.angular.z = -0.5
+    msg.angular.z = -TURNWISE_SPEED
     pub.publish(msg)
     difference = (originalTheta - theta + 360 )%180
     while (difference< 90):
-	rospy.loginfo(difference)
-	difference = (originalTheta - theta + 360 )%180
+        rospy.loginfo(difference)
+        difference = (originalTheta - theta + 360 )%180
         pub.publish(msg)
-        rospy.sleep(0.01)
+        rospy.sleep(SLEEPYTIME)
     msg.angular.z = 0
     pub.publish(msg)
     
@@ -44,18 +87,25 @@ def turnLeft():
     global theta, pub
     originalTheta = theta;
     msg = Twist()
-    msg.angular.z = 0.5
+    msg.angular.z = TURNWISE_SPEED
     pub.publish(msg)
-    while (theta - originalTheta < 90):
-	print "lol"
+    difference = (theta - originalTheta + 360 )%180
+    while (difference <90):
+        rospy.loginfo(difference)
+        difference = (theta - originalTheta + 360 )%180
+        pub.publish(msg)
+        rospy.sleep(SLEEPYTIME)
+    msg.angular.z = 0
+    pub.publish(msg)
 
 
 
 def main():
-    global pub, theta, x, y
+    global pub, theta, x, y, bumped
     theta = 0
     x = 0
     y = 0
+    bumped = False
     rospy.loginfo("converting quaternions")
     rospy.init_node('bumpControl')
     rospy.Subscriber("/odom2D", Pose2D, poseChange)
@@ -67,12 +117,13 @@ def main():
     always try to take right turns, then forward direction, then left.
     '''
     while theta is 0:
-	rospy.loginfo("waiting to receive odom...")
-	rospy.sleep(0.01)
-	
-    turnRight()
+        rospy.loginfo("waiting to receive odom...")
+        rospy.sleep(0.01)
+        
+    moveBackward(.5)
+    #moveForward(.5)
     while not rospy.is_shutdown():
-        rospy.loginfo(theta)
+        rospy.loginfo(bumped)
         rospy.sleep(0.01)
         #turn right
         #if bump, return back to old cell
