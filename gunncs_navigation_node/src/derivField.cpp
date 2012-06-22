@@ -157,24 +157,71 @@ Mat getFloorArced(const Mat& flooded, Mat& floor_arc, int height){
     //floodfill arc 
     //cvtColor(flooded, floor_arc, CV_GRAY2BGR);
 
+    for (int x = height; x<640- height; x++){
+        int y = 480- height;
+        Point toDisplay  = Point(x,y);
+        Point cartesian = cartesianPoint(toDisplay);
 
-    for(double mult = -1.0; mult <= 1.0; mult+=2){
-        for(int x = 320-height; x < 320 + height; x++){
-            Point toDisplay  = cartesianPoint(Point(x,0));
-            toDisplay = screenPoint(
-                    Point(
-                        toDisplay.x, 
-                        getArcFunction(toDisplay.x, mult, height)));
-            Point cartesian = cartesianPoint(toDisplay);
-
-            int value = readDistance(flooded, toDisplay.x, toDisplay.y);
-            if(value == 0){
-                circle(floor_arc, toDisplay, 1, Scalar(0, 255, 0), -1);
-            } else{
-                circle(floor_arc, toDisplay, 1, Scalar(255, 0, 0), -1);
-            }
+        int value = readDistance(flooded, x, y);
+        if(value == 0){
+            circle(floor_arc, toDisplay, 1, Scalar(0, 255, 0), -1);
+        } else{
+            circle(floor_arc, toDisplay, 1, Scalar(255, 0, 0), -1);
         }
     }
+    for (int x = height; x<640- height; x++){
+        int y =  height;
+        Point toDisplay  = Point(x,y);
+        Point cartesian = cartesianPoint(toDisplay);
+
+        int value = readDistance(flooded, x, y);
+        if(value == 0){
+            circle(floor_arc, toDisplay, 1, Scalar(0, 255, 0), -1);
+        } else{
+            circle(floor_arc, toDisplay, 1, Scalar(255, 0, 0), -1);
+        }
+    }
+    for (int y = height; y<480- height; y++){
+        int x =  height;
+        Point toDisplay  = Point(x,y);
+        Point cartesian = cartesianPoint(toDisplay);
+
+        int value = readDistance(flooded, x, y);
+        if(value == 0){
+            circle(floor_arc, toDisplay, 1, Scalar(0, 255, 0), -1);
+        } else{
+            circle(floor_arc, toDisplay, 1, Scalar(255, 0, 0), -1);
+        }
+    }
+    for (int y = height; y<480- height; y++){
+        int x =  640 -height;
+        Point toDisplay  = Point(x,y);
+        Point cartesian = cartesianPoint(toDisplay);
+
+        int value = readDistance(flooded, x, y);
+        if(value == 0){
+            circle(floor_arc, toDisplay, 1, Scalar(0, 255, 0), -1);
+        } else{
+            circle(floor_arc, toDisplay, 1, Scalar(255, 0, 0), -1);
+        }
+    }
+    /*
+       for(int x = 320-height; x < 320 + height; x++){
+       Point toDisplay  = cartesianPoint(Point(x,0));
+       toDisplay = screenPoint(
+       Point(
+       toDisplay.x, 
+       getArcFunction(toDisplay.x, mult, height)));
+       Point cartesian = cartesianPoint(toDisplay);
+
+       int value = readDistance(flooded, toDisplay.x, toDisplay.y);
+       if(value == 0){
+       circle(floor_arc, toDisplay, 1, Scalar(0, 255, 0), -1);
+       } else{
+       circle(floor_arc, toDisplay, 1, Scalar(255, 0, 0), -1);
+       }
+       }
+       */
 
     return floor_arc;
 
@@ -314,11 +361,13 @@ void loop(Mat original){
 
     Mat floor_arc;
     cvtColor(flooded, floor_arc, CV_GRAY2BGR);
-    //floor_arc = getFloorArced(flooded, 240);
+    floor_arc = getFloorArced(flooded, floor_arc, 20);
 
+    /*
     for(int i = 0; i < 320; i+=20){
         floor_arc = getFloorArced(flooded, floor_arc, i);
     }
+    */
     //floor_arc = showFeatures(floor_arc, features);
 
 
