@@ -106,11 +106,29 @@ def investigateDirection(): #returns false if we returned to our current cell
     bumped = not moveForward(DIST_BT_CELLS)
     if (bumped): 
         moveBackward(DIST_CELL_CENTER_TO_WALL)
+    global theta, pub
+        originalTheta = theta;
+        msg = Twist()
+        msg.angular.z = TURNWISE_SPEED*angleCorrection
+        pub.publish(msg)
+        difference = (originalTheta - theta + 360 )%180
+        while (difference< 1):
+            difference = (originalTheta - theta + 360 )%180
+            pub.publish(msg)
+            rospy.sleep(SLEEPYTIME)
+        msg.angular.z = 0
+        pub.publish(msg)
+
     return bumped
 
 def botStateChanged(data):
-    global bumped, commanded
+    global bumped, commanded, angleCorrection
     bumped = data.bumps_wheeldrops is not 0
+    angleCorrection = 0
+    if (data.bumps_wheeldrops == 1):
+	angleCorrection = -1
+    elif (data.bumps_wheeldrop ==2):
+    	angleCorrection = 1
 
 def turnRight():
     global theta, pub
