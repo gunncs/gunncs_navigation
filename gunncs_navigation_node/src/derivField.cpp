@@ -57,6 +57,7 @@ struct Feature {
     Point left;
     Point right;
     Point midpoint;
+    double distance;
 };
 
 void kinectCallBack(const sensor_msgs::ImageConstPtr& msg){
@@ -123,12 +124,19 @@ Mat getDilatedImage(const Mat& img){
  * Used by flood fill operation
  */
 Point getGroundPoint(const Mat& dilated_binary){
+    for(int i = 479; i>0; i--){
+        Point p (320, i);
+        if (dilated_binary.at<float>(p) == 0){
+            return p;
+        }
+    }
     return Point();
 }
 
 //in cartesian
 int getSemicircleHeight(int x){
-    return abs(sqrt(( 320 +arcRadius)*(320 +  arcRadius) - x * x) + arcHeight- arcHeightminus);
+    //return abs(sqrt(( 320 +arcRadius)*(320 +  arcRadius) - x * x) + arcHeight- arcHeightminus);
+    return -(420.0/102400.0)* (x * x) + 420.0;
 }
 
 Mat showFeatures(const Mat& flooded, const vector<Feature>& features){
@@ -193,6 +201,9 @@ vector<Feature> extractFeatures(const Mat& ground){
             newFeature.midpoint = Point(
                     (left.x + cartesian.x)/2,
                     (left.y + cartesian.y)/2);
+            newFeature.distance = sqrt( 
+                    (left.x - cartesian.x)* (left.x - cartesian.x) +
+                    (left.y - cartesian.y)* (left.y - cartesian.y));
 
             features.push_back(newFeature);
         }
@@ -225,12 +236,33 @@ vector<Feature> extractFeatures(const Mat& ground){
                 (left.x + cartesian.x)/2,
                 (left.y + cartesian.y)/2);
 
+        newFeature.distance = sqrt( 
+                (left.x - cartesian.x)* (left.x - cartesian.x) +
+                (left.y - cartesian.y)* (left.y - cartesian.y));
         features.push_back(newFeature);
     }
 
     //if we get no edge at the end
     return features;
 }
+
+vector<Feature> filterSmall(vector<Feature>& features, int threshold){
+
+    vector<Feature> retu;
+    for(size_t i = 0; i > features.size(); i++){
+        /*
+        if(features[i].distance < threshold){
+            //features.erase(features.begin()+i);
+        }else{
+            retu.push_back(features[i]);
+        }
+        */
+        retu.push_back(features[i]);
+
+    }
+    return retu;
+}
+
 
 
 
@@ -258,13 +290,18 @@ void loop(Mat original){
 
     //floodfill and isolation 
     Mat flooded = dilated.clone();
-    floodFill(flooded, Point(320, 479), Scalar(1));
+    floodFill(flooded, getGroundPoint(dilated), Scalar(1));
     //the convex hull we want is just the part that got flooded
     flooded = flooded - dilated;
 
     vector<Feature> features = extractFeatures(flooded);
-    //std_msgs::Float32 point;
-    //point.data = features[0].midpoint
+    //features = filterSmall(features, 0);
+    if(features.size() >= 1){
+        std_msgs::Float32 point;
+        point.data = features[0].midpoint.x;
+        cout << features[0].midpoint.x << endl;
+        center_pub.publish(point);
+    }
 
     Mat floor_arc = getFloorArced(flooded);
 
@@ -388,7 +425,6 @@ int main(int argc, char **argv)
 #endif
 #if THRESHOLD 
     namedWindow("Threshold");
-
 #endif
 #if DILATED
     namedWindow("Dilated");
