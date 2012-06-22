@@ -20,8 +20,8 @@
 #define ORIGINAL 1
 #define XGRAD 0
 #define YGRAD 0
-#define GRAD 0
-#define THRESHOLD 0
+#define GRAD 1
+#define THRESHOLD 1
 #define DILATED 1
 #define FLOOD_FILL 1
 #define FLOOR_ARC 1
@@ -139,6 +139,10 @@ int getArcFunction(double x, double mult, double height){
     //return -(420.0/102400.0)* (x * x) + 420.0;
 }
 
+
+
+
+
 Mat showFeatures(const Mat& flooded, const vector<Feature>& features){
     Mat retu = flooded.clone();
     for (size_t i = 0; i<features.size(); i++){
@@ -149,10 +153,9 @@ Mat showFeatures(const Mat& flooded, const vector<Feature>& features){
 
 
 
-Mat getFloorArced(const Mat& flooded, int height){
+Mat getFloorArced(const Mat& flooded, Mat& floor_arc, int height){
     //floodfill arc 
-    Mat floor_arc;
-    cvtColor(flooded, floor_arc, CV_GRAY2BGR);
+    //cvtColor(flooded, floor_arc, CV_GRAY2BGR);
 
 
     for(double mult = -1.0; mult <= 1.0; mult+=2){
@@ -274,6 +277,7 @@ void loop(Mat original){
     //Canny(floatImage, floatImage, 10, 100, 3);
     //cvtColor(floatImage, floatImage, CV_GRAY2BGR);
     //cv::Canny(floatImage, floatImage, 50, 150, 3);
+    //bilateralFilter(original, original, 3, 6, 1);
 
 
     Mat grad = sobel(original);
@@ -307,7 +311,14 @@ void loop(Mat original){
     }
     */
 
-    Mat floor_arc = getFloorArced(flooded, 240);
+
+    Mat floor_arc;
+    cvtColor(flooded, floor_arc, CV_GRAY2BGR);
+    //floor_arc = getFloorArced(flooded, 240);
+
+    for(int i = 0; i < 320; i+=20){
+        floor_arc = getFloorArced(flooded, floor_arc, i);
+    }
     //floor_arc = showFeatures(floor_arc, features);
 
 
