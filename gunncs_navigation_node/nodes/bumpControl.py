@@ -12,8 +12,8 @@ from turtlebot_node.msg import *
 DIST_BT_CELLS = .5
 DIST_CELL_CENTER_TO_WALL = .25
 LINEAR_SPEED = 0.5
-TURNWISE_SPEED = 0.5
-SLEEPYTIME = 0.01
+TURNWISE_SPEED = 1
+SLEEPYTIME = 0.001
 WALL_UNKNOWN = 1
 WALL_BLOCKED = 1
 WALL_OPEN = 2
@@ -26,38 +26,38 @@ def explore(): #do right wall following while generating a map
     virtualTheta = 0 #0,90,180,270 are the only allowed values
     finished = false
     didBump = false
-    while (!finished):
-    	didBump = !investigateWall()
-    	if (!didBump):
-		    if (virtualTheta = 0):
-		    	horizontalWalls[currentCellX][currentCellY] = WALL_OPEN
-		    	currentCellY-=1
-			elif (virtualTheta = 90):
-				verticalWalls[currentCellX][currentCellY] = WALL_OPEN
-				currentCellX-=1
-			elif (virtualTheta = 180):
-				horizontalWalls[currentCellX][currentCellY+1] = WALL_OPEN
-				currentCellY+=1
-			elif (virtualTheta = 270):
-				verticalWalls[currentCellX+1][currentCellY] = WALL_OPEN
-				currentCellX+=1
-			turnRight();
-			virtualTheta+=270;virtualTheta%=360
-		else:
-			if (virtualTheta = 0):
-		    	horizontalWalls[currentCellX][currentCellY] = WALL_BLOCKED
-		    	currentCellY-=1
-	    	elif (virtualTheta = 90):
-	    		verticalWalls[currentCellX][currentCellY] = WALL_BLOCKED
-	    		currentCellX-=1
-	    	elif (virtualTheta = 180):
-	    		horizontalWalls[currentCellX][currentCellY+1] = WALL_BLOCKED
-	    		currentCellY+=1
-	    	elif (virtualTheta = 270):
-				verticalWalls[currentCellX+1][currentCellY] = WALL_BLOCKED
-				currentCellX+=1
-			turnLeft();
-			virtualTheta+=270;virtualTheta%=360
+    while (not finished):
+        didBump = not investigateWall()
+        if (not didBump):
+            if (virtualTheta == 0):
+                horizontalWalls[currentCellX][currentCellY] = WALL_OPEN
+                currentCellY-=1
+            elif (virtualTheta == 90):
+                verticalWalls[currentCellX][currentCellY] = WALL_OPEN
+                currentCellX-=1
+            elif (virtualTheta == 180):
+                horizontalWalls[currentCellX][currentCellY+1] = WALL_OPEN
+                currentCellY+=1
+            elif (virtualTheta ==  270):
+                verticalWalls[currentCellX+1][currentCellY] = WALL_OPEN
+                currentCellX+=1
+            turnRight();
+            virtualTheta+=270;virtualTheta%=360
+        else:
+            if (virtualTheta ==  0):
+                horizontalWalls[currentCellX][currentCellY] = WALL_BLOCKED
+                currentCellY-=1
+            elif (virtualTheta ==  90):
+                verticalWalls[currentCellX][currentCellY] = WALL_BLOCKED
+                currentCellX-=1
+            elif (virtualTheta ==  180):
+                horizontalWalls[currentCellX][currentCellY+1] = WALL_BLOCKED
+                currentCellY+=1
+            elif (virtualTheta ==  270):
+                verticalWalls[currentCellX+1][currentCellY] = WALL_BLOCKED
+                currentCellX+=1
+            turnLeft();
+            virtualTheta+=270;virtualTheta%=360
 
 
 '''
@@ -137,8 +137,8 @@ def turnRight():
     msg.angular.z = -TURNWISE_SPEED
     pub.publish(msg)
     difference = (originalTheta - theta + 360 )%180
-    while (difference< 90):
-        rospy.loginfo(difference)
+    while (difference< 92):
+        #rospy.loginfo(difference)
         difference = (originalTheta - theta + 360 )%180
         pub.publish(msg)
         rospy.sleep(SLEEPYTIME)
@@ -153,8 +153,7 @@ def turnLeft():
     msg.angular.z = TURNWISE_SPEED
     pub.publish(msg)
     difference = (theta - originalTheta + 360 )%180
-    while (difference <90):
-        rospy.loginfo(difference)
+    while (difference <92):
         difference = (theta - originalTheta + 360 )%180
         pub.publish(msg)
         rospy.sleep(SLEEPYTIME)
@@ -188,15 +187,41 @@ def main():
     #result = moveBackward(.5)
     #result = moveForward(.5)
     #investigateDirection()
+    #turnLeft()
+    
+    '''
+    for x in range(0,4):
+        rospy.loginfo(x)
+        turnLeft()
+        rospy.sleep(1)
+   
+    '''
+    '''
     success = moveForward(.5)
     if not success:
         moveBackward(.25)
         turnLeft()
     else:
         turnRight()
+        '''
+
+    '''
+    moveForward(0.5)
+    rospy.sleep(1)
+    moveBackward(0.15)
+    '''
+
+    print("starting")
+    
+    while not rospy.is_shutdown():
+        success = moveForward(.5)
+        if not success:
+            moveBackward(.15)
+            turnLeft()
+        else:
+            turnRight()
 
 
-    #while not rospy.is_shutdown():
         '''
         turnRight()
         success = moveForward(.5)
@@ -206,7 +231,7 @@ def main():
 
         '''
         #rospy.loginfo(bumped)
-        #rospy.sleep(0.01)
+        rospy.sleep(0.01)
         #turn right
         #if bump, return back to old cell
         #
