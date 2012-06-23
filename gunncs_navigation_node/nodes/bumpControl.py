@@ -9,6 +9,7 @@ import math
 from nav_msgs.msg import *
 from geometry_msgs.msg import *
 from turtlebot_node.msg import *
+from std_msgs.msg import *
 DIST_BT_CELLS = .5
 DIST_CELL_CENTER_TO_WALL = .15
 LINEAR_SPEED = 0.5
@@ -26,8 +27,12 @@ def explore(): #do right wall following while generating a map
     virtualTheta = 0 #0,90,180,270 are the only allowed values
     finished = false
     didBump = false
+    traveledSpaces = [(20,20)]
     while (not finished):
         didBump = not investigateWall()
+        if docking:
+            finished = docking
+            return horizontalWalls, verticalWalls
         if (not didBump):
             if (virtualTheta == 0):
                 horizontalWalls[currentCellX][currentCellY] = WALL_OPEN
@@ -41,6 +46,15 @@ def explore(): #do right wall following while generating a map
             elif (virtualTheta ==  270):
                 verticalWalls[currentCellX+1][currentCellY] = WALL_OPEN
                 currentCellX+=1
+            if (currentCellX, currentCellY) in traveledSpaces:
+                if (virtualTheta == 0):
+                    horizontalWalls[currentCellX][currentCellY+1] = WALL_BLOCKED
+                elif (virtualTheta == 90):
+                    verticalWalls[currentCellX+1][currentCellY] = WALL_BLOCKED
+                elif (virtualTheta == 180):
+                    horizontalWalls[currentCellX][currentCellY] = WALL_BLOCKED
+                elif (virtualTheta ==  270):
+                    verticalWalls[currentCellX][currentCellY] = WALL_BLOCKED
             turnRight();
             virtualTheta+=270;virtualTheta%=360
         else:
@@ -57,9 +71,47 @@ def explore(): #do right wall following while generating a map
                 verticalWalls[currentCellX+1][currentCellY] = WALL_BLOCKED
                 currentCellX+=1
             turnLeft();
-            virtualTheta+=270;virtualTheta%=360
+            virtualTheta+=90;virtualTheta%=360
 
+def canMove(virtualTheta, x, y, horizontalWalls, verticalWalls):
+   if (virtualTheta == 0):
+        return horizontalWalls[x][y]==WALL_OPEN
+   elif (virtualTheta == 90):
+        return verticalWalls[x][y]==WALL_OPEN
+   elif (virtualTheta == 180):
+        return horizontalWalls[x][y-1]==WALL_OPEN
+   elif (virtualTheta == 270):
+        return verticalWalls[x+1][y]==WALL_OPEN
+   else return False
 
+def doMazeFast(horizontalWalls, verticalWalls):
+    currentCellX = 20
+    currentCellY = 20
+    virtualTheta = 0
+    finished = False
+    while (!finished):
+        #determine if turning left or right
+        left = (virtualTheta + 90)%360
+        right = (virtualTheta + 270)%360
+        if canMove(right,currentCellX,currentCellY,horizontalWalls,verticalWalls):
+            turnRight()
+            virtualTheta = right
+            moveForward()
+        elif canMove(virtualTheta,currentCellX,currentCellY,horizontalWalls,verticalWalls):
+            moveForward()
+        elif canMove(left,currentCellX,currentCellY,horizontalWalls,verticalWalls):
+            turnLeft()
+            virtualTheta = left
+            moveForward()
+        if (virtualTheta == 0):
+            currentCellY -= 1
+        elif (virtualTheta == 90):
+            currentCellX -= 1
+        elif (virtualTheta == 180):
+            currentCellY +=1
+        elif (virtualTheta == 270):
+            currentCellX +=1
+        
 '''
 Publishes an odom frame im meters and degrees '''
 def poseChange(data):
@@ -108,22 +160,22 @@ def investigateDirection(): #returns false if we returned to our current cell
     bumped = not moveForward(DIST_BT_CELLS)
     if (bumped): 
         moveBackward(DIST_CELL_CENTER_TO_WALL)
-    	print angleCorrection
-	if (angleCorrection != 0):
-		global theta, pub
-    		originalTheta = theta
-    		msg = Twist()
-    		msg.angular.z = TURNWISE_SPEED*angleCorrection
-    		pub.publish(msg)
-    		difference = (originalTheta - theta + 360 )%180
-    		print "correcting"
-    		while (difference< 3):
-    		    difference = (originalTheta - theta + 360 )%180
-    		    pub.publish(msg)
-    		    rospy.sleep(SLEEPYTIME)
-    		print "correction done"
-		msg.angular.z = 0
-    		pub.publish(msg)
+        print angleCorrection
+    if (angleCorrection != 0):
+        global theta, pub
+            originalTheta = theta
+            msg = Twist()
+            msg.angular.z = TURNWISE_SPEED*angleCorrection
+            pub.publish(msg)
+            difference = (originalTheta - theta + 360 )%180
+            print "correcting"
+            while (difference< 3):
+                difference = (originalTheta - theta + 360 )%180
+                pub.publish(msg)
+                rospy.sleep(SLEEPYTIME)
+            print "correction done"
+            msg.angular.z = 0
+            pub.publish(msg)
 
     return bumped
 
@@ -131,11 +183,11 @@ def botStateChanged(data):
     global bumped, commanded, angleCorrection
     bumped = data.bumps_wheeldrops is not 0
     if (data.bumps_wheeldrops == 1):
-	angleCorrection = -1
-	print "setting correction to go left"
+        angleCorrection = -1
+        print "setting correction to go left"
     elif (data.bumps_wheeldrops ==2):
-    	angleCorrection = 1
-	print "settting correction to go right"
+        angleCorrection = 1
+        print "settting correction to go right"
 
 def turnRight():
     global theta, pub
@@ -168,9 +220,13 @@ def turnLeft():
     pub.publish(msg)
 
 
+def dockingStart(data):
+    global docking
+    docking = data
+
 
 def main():
-    global pub, theta, x, y, bumped, commanded
+    global pub, theta, x, y, bumped, commanded, docking
     theta = 0
     x = 0
     y = 0
@@ -178,6 +234,8 @@ def main():
     commanded = False
     rospy.loginfo("converting quaternions")
     rospy.init_node('bumpControl')
+    docking = False
+    rospy.Subscriber("/docking", Bool, dockingStart)
     rospy.Subscriber("/odom2D", Pose2D, poseChange)
     rospy.Subscriber("/turtlebot_node/sensor_state", TurtlebotSensorState, botStateChanged)
     #rospy.Subscriber("/cmd_vel", Twist, twistChanged)
@@ -221,16 +279,16 @@ def main():
     print("starting")
     
     while not rospy.is_shutdown():
-	investigateDirection()
+    investigateDirection()
         '''
-	success = moveForward(.5)
+    success = moveForward(.5)
         if not success:
             moveBackward(.15)
             turnLeft()
         else:
             turnRight()
 
-	'''
+    '''
         '''
         turnRight()
         success = moveForward(.5)
