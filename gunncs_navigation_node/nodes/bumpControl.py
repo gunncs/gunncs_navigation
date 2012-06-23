@@ -10,7 +10,7 @@ from nav_msgs.msg import *
 from geometry_msgs.msg import *
 from turtlebot_node.msg import *
 DIST_BT_CELLS = .5
-DIST_CELL_CENTER_TO_WALL = .25
+DIST_CELL_CENTER_TO_WALL = .15
 LINEAR_SPEED = 0.5
 TURNWISE_SPEED = 1
 SLEEPYTIME = 0.001
@@ -103,32 +103,39 @@ def moveBackward(requestedDistance):
     pub.publish(msg)
 
 def investigateDirection(): #returns false if we returned to our current cell
+    global angleCorrection
+    angleCorrection = 0
     bumped = not moveForward(DIST_BT_CELLS)
     if (bumped): 
         moveBackward(DIST_CELL_CENTER_TO_WALL)
-    global theta, pub
-        originalTheta = theta;
-        msg = Twist()
-        msg.angular.z = TURNWISE_SPEED*angleCorrection
-        pub.publish(msg)
-        difference = (originalTheta - theta + 360 )%180
-        while (difference< 1):
-            difference = (originalTheta - theta + 360 )%180
-            pub.publish(msg)
-            rospy.sleep(SLEEPYTIME)
-        msg.angular.z = 0
-        pub.publish(msg)
+    	print angleCorrection
+	if (angleCorrection != 0):
+		global theta, pub
+    		originalTheta = theta
+    		msg = Twist()
+    		msg.angular.z = TURNWISE_SPEED*angleCorrection
+    		pub.publish(msg)
+    		difference = (originalTheta - theta + 360 )%180
+    		print "correcting"
+    		while (difference< 3):
+    		    difference = (originalTheta - theta + 360 )%180
+    		    pub.publish(msg)
+    		    rospy.sleep(SLEEPYTIME)
+    		print "correction done"
+		msg.angular.z = 0
+    		pub.publish(msg)
 
     return bumped
 
 def botStateChanged(data):
     global bumped, commanded, angleCorrection
     bumped = data.bumps_wheeldrops is not 0
-    angleCorrection = 0
     if (data.bumps_wheeldrops == 1):
 	angleCorrection = -1
-    elif (data.bumps_wheeldrop ==2):
+	print "setting correction to go left"
+    elif (data.bumps_wheeldrops ==2):
     	angleCorrection = 1
+	print "settting correction to go right"
 
 def turnRight():
     global theta, pub
@@ -214,14 +221,16 @@ def main():
     print("starting")
     
     while not rospy.is_shutdown():
-        success = moveForward(.5)
+	investigateDirection()
+        '''
+	success = moveForward(.5)
         if not success:
             moveBackward(.15)
             turnLeft()
         else:
             turnRight()
 
-
+	'''
         '''
         turnRight()
         success = moveForward(.5)
