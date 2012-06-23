@@ -10,8 +10,8 @@ from nav_msgs.msg import *
 from geometry_msgs.msg import *
 from turtlebot_node.msg import *
 from std_msgs.msg import *
-DIST_BT_CELLS = .5
-DIST_CELL_CENTER_TO_WALL = .15
+DIST_BT_CELLS = .4
+DIST_CELL_CENTER_TO_WALL = .08
 LINEAR_SPEED = 0.5
 TURNWISE_SPEED = 1
 SLEEPYTIME = 0.001
@@ -25,15 +25,16 @@ def explore(): #do right wall following while generating a map
     currentCellX = 20
     currentCellY = 20
     virtualTheta = 0 #0,90,180,270 are the only allowed values
-    finished = false
-    didBump = false
+    finished = False
+    didBump = False
     traveledSpaces = [(20,20)]
     while (not finished):
-        didBump = not investigateWall()
         if docking:
             finished = docking
             return horizontalWalls, verticalWalls
-        if (not didBump):
+        newCell= investigateDirection()
+        rospy.sleep(2)
+        if (newCell):
             if (virtualTheta == 0):
                 horizontalWalls[currentCellX][currentCellY] = WALL_OPEN
                 currentCellY-=1
@@ -120,7 +121,7 @@ def poseChange(data):
     y = data.y
     theta = data.theta
 
-def moveForward(requestedDistance): #returns false if bump sensor is triggered
+def moveForward(requestedDistance): #returns False if bump sensor is triggered
     global x, y,bumped
     oldx = x
     oldy = y
@@ -154,30 +155,20 @@ def moveBackward(requestedDistance):
     msg.linear.x = 0
     pub.publish(msg)
 
-def investigateDirection(): #returns false if we returned to our current cell
+def investigateDirection(): #returns True if we explore a new cell
+    print "investigating direction...."
     global angleCorrection
     angleCorrection = 0
+    print "moving forward"
     bumped = not moveForward(DIST_BT_CELLS)
     if (bumped): 
+        print "bumped: moving backward"
         moveBackward(DIST_CELL_CENTER_TO_WALL)
-        print angleCorrection
-    if (angleCorrection != 0):
-        global theta, pub
-            originalTheta = theta
-            msg = Twist()
-            msg.angular.z = TURNWISE_SPEED*angleCorrection
-            pub.publish(msg)
-            difference = (originalTheta - theta + 360 )%180
-            print "correcting"
-            while (difference< 3):
-                difference = (originalTheta - theta + 360 )%180
-                pub.publish(msg)
-                rospy.sleep(SLEEPYTIME)
-            print "correction done"
-            msg.angular.z = 0
-            pub.publish(msg)
-
-    return bumped
+        print ("angleCorrection:" + str(angleCorrection))
+        if (angleCorrection != 0): #indicating we are tilted
+            #perform a turn
+            turnDegrees(5 * angleCorrection)
+    return not bumped #not bumped means we got no obstacles, meaning new cell
 
 def botStateChanged(data):
     global bumped, commanded, angleCorrection
@@ -189,35 +180,31 @@ def botStateChanged(data):
         angleCorrection = 1
         print "settting correction to go right"
 
-def turnRight():
+def turnDegrees(degrees):
     global theta, pub
     originalTheta = theta;
+
+    speed = TURNWISE_SPEED
     msg = Twist()
-    msg.angular.z = -TURNWISE_SPEED
+    msg.angular.z = TURNWISE_SPEED * cmp(degrees, 0)
     pub.publish(msg)
-    difference = (originalTheta - theta + 360 )%180
-    while (difference< 92):
+    difference = ((originalTheta - theta)* -cmp(degrees, 0) + 360 )%180
+    while (difference < abs(degrees * (92.0/90.0))):
         #rospy.loginfo(difference)
-        difference = (originalTheta - theta + 360 )%180
+        difference = ((originalTheta - theta) * -cmp(degrees, 0) + 360 )%180
         pub.publish(msg)
         rospy.sleep(SLEEPYTIME)
     msg.angular.z = 0
     pub.publish(msg)
+
+
+
+def turnRight():
+    turnDegrees(-90)
 
 
 def turnLeft():
-    global theta, pub
-    originalTheta = theta;
-    msg = Twist()
-    msg.angular.z = TURNWISE_SPEED
-    pub.publish(msg)
-    difference = (theta - originalTheta + 360 )%180
-    while (difference <92):
-        difference = (theta - originalTheta + 360 )%180
-        pub.publish(msg)
-        rospy.sleep(SLEEPYTIME)
-    msg.angular.z = 0
-    pub.publish(msg)
+    turnDegrees(90)
 
 
 def dockingStart(data):
@@ -227,7 +214,7 @@ def dockingStart(data):
 
 def main():
     global pub, theta, x, y, bumped, commanded, docking
-    theta = 0
+    theta = -999
     x = 0
     y = 0
     bumped = False
@@ -245,64 +232,10 @@ def main():
     main logic:
     always try to take right turns, then forward direction, then left.
     '''
-    while theta is 0:
+    while theta is -999 and not rospy.is_shutdown():
         rospy.loginfo("waiting to receive odom...")
         rospy.sleep(0.01)
-
-    #result = moveBackward(.5)
-    #result = moveForward(.5)
-    #investigateDirection()
-    #turnLeft()
-    
-    '''
-    for x in range(0,4):
-        rospy.loginfo(x)
-        turnLeft()
-        rospy.sleep(1)
-   
-    '''
-    '''
-    success = moveForward(.5)
-    if not success:
-        moveBackward(.25)
-        turnLeft()
-    else:
-        turnRight()
-        '''
-
-    '''
-    moveForward(0.5)
-    rospy.sleep(1)
-    moveBackward(0.15)
-    '''
-
-    print("starting")
-    
-    while not rospy.is_shutdown():
-    investigateDirection()
-        '''
-    success = moveForward(.5)
-        if not success:
-            moveBackward(.15)
-            turnLeft()
-        else:
-            turnRight()
-
-    '''
-        '''
-        turnRight()
-        success = moveForward(.5)
-        if not success:
-            moveBackward(.25)
-            turnleft();
-
-        '''
-        #rospy.loginfo(bumped)
-        rospy.sleep(0.01)
-        #turn right
-        #if bump, return back to old cell
-        #
-
+    horizontalWalls, verticalWalls = explore()
 
 
 main()
