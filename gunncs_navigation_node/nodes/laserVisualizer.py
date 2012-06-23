@@ -59,7 +59,7 @@ def drawVis(featuredLaserScan):
     '''
     global window
     pygame.draw.rect(window, (0,0,0), (0, 0, 640, 640))
-    pygame.draw.circle(window, (255,0,0), (320, 640), 20, 0)
+    pygame.draw.circle(window, (255,0,0), (320, 320), 20, 0)
 
     clusters = []
     lines = []
@@ -75,7 +75,7 @@ def drawVis(featuredLaserScan):
         #advance cluster if out of clusters
         theta = -(laserscan.angle_min + laserscan.angle_increment * i)
         x = 320 + 300 *laserscan.ranges[i] * math.sin(theta)
-        y = 640 - 300 *laserscan.ranges[i] * math.cos(theta)
+        y = 320 - 300 *laserscan.ranges[i] * math.cos(theta)
 
         #do clusters with points so that the colors are the same
         if i is (clusters[currentCluster % len(clusters)])[0]:
