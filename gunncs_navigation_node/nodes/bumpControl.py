@@ -56,6 +56,8 @@ def explore(): #do right wall following while generating a map
                     horizontalWalls[currentCellX][currentCellY] = WALL_BLOCKED
                 elif (virtualTheta ==  270):
                     verticalWalls[currentCellX][currentCellY] = WALL_BLOCKED
+            else:
+                traveledSpaces += [(currentCellX, currentCellY)]
             turnRight();
             virtualTheta+=270;virtualTheta%=360
         else:
@@ -83,27 +85,28 @@ def canMove(virtualTheta, x, y, horizontalWalls, verticalWalls):
         return horizontalWalls[x][y-1]==WALL_OPEN
    elif (virtualTheta == 270):
         return verticalWalls[x+1][y]==WALL_OPEN
-   else return False
+   else:
+       return False
 
 def doMazeFast(horizontalWalls, verticalWalls):
     currentCellX = 20
     currentCellY = 20
     virtualTheta = 0
     finished = False
-    while (!finished):
+    while ( not finished):
         #determine if turning left or right
         left = (virtualTheta + 90)%360
         right = (virtualTheta + 270)%360
         if canMove(right,currentCellX,currentCellY,horizontalWalls,verticalWalls):
             turnRight()
             virtualTheta = right
-            moveForward()
+            investigateDirection()
         elif canMove(virtualTheta,currentCellX,currentCellY,horizontalWalls,verticalWalls):
-            moveForward()
+            investigateDirection()
         elif canMove(left,currentCellX,currentCellY,horizontalWalls,verticalWalls):
             turnLeft()
             virtualTheta = left
-            moveForward()
+            investigateDirection()
         if (virtualTheta == 0):
             currentCellY -= 1
         elif (virtualTheta == 90):
@@ -235,7 +238,9 @@ def main():
     while theta is -999 and not rospy.is_shutdown():
         rospy.loginfo("waiting to receive odom...")
         rospy.sleep(0.01)
-    horizontalWalls, verticalWalls = explore()
+    #horizontalWalls, verticalWalls = explore()
+    input()
+    doMazeFast(horizontalWalls, verticalWalls)
 
 
 main()
