@@ -29,6 +29,7 @@ LINEAR_SPEED = 20/1000.0
 KP = 99.0/1000.0
 KI = 0 
 KD = 0 
+control = False
 
 pid = PIDController(KP, KI, KD, -1.0, 1.0)
 
@@ -38,6 +39,7 @@ def main():
     rospy.init_node('AngleSetter')
 
     rospy.Subscriber("/gunncs/angle", Float32, angleCb) 
+    rospy.Subscriber("/gunncs/angleControl", Bool, controlCb) 
     cvPub = rospy.Publisher('/cv', Float32)
     twistPub = rospy.Publisher('/cmd_vel', Twist)
     if TUNING:
@@ -53,6 +55,11 @@ def main():
 
 
     rospy.spin()
+
+def controlCb(switch):
+    global control
+    control = switch.data
+
 
 def angleCb(distance):
     '''
@@ -74,13 +81,16 @@ def command(pidresult):
     '''
     commands wall angle with the pid result
     '''
-    global cvPub, twistPub, LINEAR_SPEED
+    global cvPub, twistPub, LINEAR_SPEED, control
     cv_msg = Float32()
     cv_msg.data = pidresult
     cvPub.publish(cv_msg)
 
     twist_msg = Twist()
-    twist_msg.angular.z = pidresult
+    if control:
+        twist_msg.angular.z = pidresult
+    else:
+        twist_msg.angular.z = 0
     twistPub.publish(twist_msg)
 
 
