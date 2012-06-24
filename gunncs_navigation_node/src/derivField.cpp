@@ -23,15 +23,15 @@
 #define GRAD 1
 #define THRESHOLD 1
 #define DILATED 1
-#define FLOOD_FILL 1
-#define FLOOR_ARC 1
+#define FLOOD_FILL 0
+#define FLOOR_ARC 0
 
 using namespace cv;
 using namespace std;
 
 cv::Mat_<float> getImage(const sensor_msgs::ImageConstPtr& msg);
 double readDistance(cv::Mat depth, int x_pos, int y_pos); cv::Mat flattenRawImage(cv::Mat original); 
-void loop(cv::Mat original); 
+void loop(Mat original); 
 void addText(Mat image, string text, double data, int x, int y);
 
 
@@ -41,13 +41,14 @@ int divisor = 1;
 //int ir_threshold = 99;
 float ir_threshold = 0.9999999;
 int hullThreshold = 21;
-int dilateIterations = 13;
+int dilateIterations = 41;
 
 int arcRadius = 88;
 int arcHeight = 0;
 int arcHeightminus= 100;
 
 ros::Publisher center_pub;
+ros::Publisher angle_pub;
 
 
 sensor_msgs::CvBridge img_bridge_;
@@ -81,7 +82,7 @@ Mat sobel(const Mat& original){
     int delta = 0;
     int ddepth = CV_16S;
 
-    GaussianBlur( original, blurred, Size(3,3), 0, 0, BORDER_DEFAULT );
+    //GaussianBlur( original, blurred, Size(3,3), 0, 0, BORDER_DEFAULT );
 
     /// Create window
     //namedWindow( window_name, CV_WINDOW_AUTOSIZE );
@@ -133,191 +134,102 @@ Point getGroundPoint(const Mat& dilated_binary){
     return Point();
 }
 
-//in cartesian
-int getArcFunction(double x, double mult, double height){
-    return mult * sqrt( (height * height) - (x * x));
-    //return -(420.0/102400.0)* (x * x) + 420.0;
+float getAngle(Mat& dilated){
+    float left = 210;
+    float right = 425;
+    float leftY = 0;
+    float rightY = 0;
+    //first, get the left point
+    for(int y_pos = 479; y_pos > 0; y_pos--){
+        int value = dilated.at<float>(Point(left, y_pos));
+        if (value == 1) { // indicating we are at the feature
+            leftY = y_pos;
+            break;
+        }
+    }
+    for(int y_pos = 479; y_pos > 0; y_pos--){
+        int value = dilated.at<float>(Point(right, y_pos));
+        if (value == 1) { // indicating we are at the feature
+            rightY= y_pos;
+            break;
+        }
+    }
+    //cout << leftY << "\t " << rightY << endl;
+
+    return 180.0 / CV_PI * atan(
+            (rightY - leftY) /
+            (right - left));
+
+
 }
 
 
+Mat removeNoise(Mat& original){
 
-
-
-Mat showFeatures(const Mat& flooded, const vector<Feature>& features){
-    Mat retu = flooded.clone();
-    for (size_t i = 0; i<features.size(); i++){
-        line(retu, screenPoint(features[i].left), screenPoint(features[i].right), Scalar(0,0,255));
-    }
-    return retu;
-}
-
-
-
-Mat getFloorArced(const Mat& flooded, Mat& floor_arc, int height){
-    //floodfill arc 
-    //cvtColor(flooded, floor_arc, CV_GRAY2BGR);
-
-    for (int x = 0; x<640; x++){
-        int y = 480- height;
-        Point toDisplay  = Point(x,y);
-        Point cartesian = cartesianPoint(toDisplay);
-
-        int value = readDistance(flooded, x, y);
-        if(value == 0){
-            circle(floor_arc, toDisplay, 1, Scalar(0, 255, 0), -1);
-        } else{
-            circle(floor_arc, toDisplay, 1, Scalar(255, 0, 0), -1);
+    int nonZeroValue = 0;
+    for(int x_pos = 0; x_pos < 640; x_pos++){
+        for(int y_pos = 0; y_pos < 480; y_pos++){
+            int current = original.at<float>(Point(x_pos, y_pos));
+            if(current == 0){
+                if (nonZeroValue != 0){
+                    circle(original, Point(x_pos, y_pos), 1, Scalar(nonZeroValue), -1);
+                }
+                //circle(floor_arc, toDisplay, 1, Scalar(0, 255, 0), -1);
+            } else{
+                nonZeroValue = current;
+            }
         }
     }
-    for (int x = 0; x<640; x++){
-        int y =  height;
-        Point toDisplay  = Point(x,y);
-        Point cartesian = cartesianPoint(toDisplay);
+    return original;
 
-        int value = readDistance(flooded, x, y);
-        if(value == 0){
-            circle(floor_arc, toDisplay, 1, Scalar(0, 255, 0), -1);
-        } else{
-            circle(floor_arc, toDisplay, 1, Scalar(255, 0, 0), -1);
-        }
-    }
-    for (int y = 0; y<480; y++){
-        int x =  height;
-        Point toDisplay  = Point(x,y);
-        Point cartesian = cartesianPoint(toDisplay);
 
-        int value = readDistance(flooded, x, y);
-        if(value == 0){
-            circle(floor_arc, toDisplay, 1, Scalar(0, 255, 0), -1);
-        } else{
-            circle(floor_arc, toDisplay, 1, Scalar(255, 0, 0), -1);
-        }
-    }
-    for (int y = 0; y<480; y++){
-        int x =  640 -height;
-        Point toDisplay  = Point(x,y);
-        Point cartesian = cartesianPoint(toDisplay);
 
-        int value = readDistance(flooded, x, y);
-        if(value == 0){
-            circle(floor_arc, toDisplay, 1, Scalar(0, 255, 0), -1);
-        } else{
-            circle(floor_arc, toDisplay, 1, Scalar(255, 0, 0), -1);
-        }
-    }
     /*
-       for(int x = 320-height; x < 320 + height; x++){
-       Point toDisplay  = cartesianPoint(Point(x,0));
-       toDisplay = screenPoint(
-       Point(
-       toDisplay.x, 
-       getArcFunction(toDisplay.x, mult, height)));
-       Point cartesian = cartesianPoint(toDisplay);
+       int channels = original.channels();
+       int nRows = original.rows * channels;
+       int nCols = original.cols;
 
-       int value = readDistance(flooded, toDisplay.x, toDisplay.y);
-       if(value == 0){
-       circle(floor_arc, toDisplay, 1, Scalar(0, 255, 0), -1);
-       } else{
-       circle(floor_arc, toDisplay, 1, Scalar(255, 0, 0), -1);
+       if (original.isContinuous()){
+       nCols *= nRows;
+       nRows = 1;
        }
-       }
-       */
 
-    return floor_arc;
+       uchar* p;
+       for( int i = 0; i < nRows; i++){
+       p = original.ptr<uchar>(i);
+       for ( int j = 0; j < nCols; j++){
+    //if((int) p[j] == 0){
+    p[j] = (uchar) 200;
+    //}
+    cout << (int) p[j] << " " ;
 
-}
-
-
-vector<Feature> extractFeatures(const Mat& ground, int height){
-
-    Mat floor_arc = ground.clone();
-    vector<Feature> features;
-
-    float value = 0;
-    Point left = Point(0,0);
-
-    for(int x = 0; x < 640; x++){
-        Point toDisplay  = cartesianPoint(Point(x,0));
-        toDisplay = screenPoint(Point(toDisplay.x, getArcFunction(toDisplay.x, 1.0, height)));
-        Point cartesian = cartesianPoint(toDisplay);
-        /*
-           toDisplay = Point(toDisplay.x, getArcFunction(toDisplay.x));
-           toDisplay = screenPoint(toDisplay);
-           float newValue = ground.at<float>(toDisplay);
-           float newValue = ground.at<float>(toDisplay);
-           */
-        float newValue = ground.at<float>(toDisplay);
-        if(value == 0 && newValue == 1){
-            left = cartesian;
-        }
-        if (value == 1 && newValue == 0){
-            Feature newFeature;
-            newFeature.left = left;
-            newFeature.right = cartesian;
-            newFeature.midpoint = Point(
-                    (left.x + cartesian.x)/2,
-                    (left.y + cartesian.y)/2);
-            newFeature.distance = sqrt( 
-                    (left.x - cartesian.x)* (left.x - cartesian.x) +
-                    (left.y - cartesian.y)* (left.y - cartesian.y));
-
-            features.push_back(newFeature);
-        }
-        value = newValue;
-
-        /*
-           int value = readDistance(flooded, toDisplay.x, toDisplay.y);
-           if(value == 0){
-           circle(floor_arc, toDisplay, 1, Scalar(0, 255, 0), -1);
-           } else{
-           circle(floor_arc, toDisplay, 1, Scalar(255, 0, 0), -1);
-           }
-           */
+    //p[j] = table[p[j]];
     }
-    Point toDisplay  = cartesianPoint(Point(639,0));
-    toDisplay = screenPoint(Point(toDisplay.x, getArcFunction(toDisplay.x, 1.0,  height)));
-    Point cartesian = cartesianPoint(toDisplay);
+    }
+    //cout << endl;
+    return original;
+    */
+
     /*
-       toDisplay = Point(toDisplay.x, getArcFunction(toDisplay.x));
-       toDisplay = screenPoint(toDisplay);
-       float newValue = ground.at<float>(toDisplay);
-       float newValue = ground.at<float>(toDisplay);
-       */
-    float newValue = ground.at<float>(toDisplay);
-    if (newValue == 1 ){
-        Feature newFeature;
-        newFeature.left = left;
-        newFeature.right = cartesian;
-        newFeature.midpoint = Point(
-                (left.x + cartesian.x)/2,
-                (left.y + cartesian.y)/2);
-
-        newFeature.distance = sqrt( 
-                (left.x - cartesian.x)* (left.x - cartesian.x) +
-                (left.y - cartesian.y)* (left.y - cartesian.y));
-        features.push_back(newFeature);
+       MatIterator_<uchar> it, end;
+       for( it = original.begin<uchar>(), end = original.end<uchar>(); it != end; ++it){
+    //*it = (uchar) 20;
+    cout << (int) *it << " " ;
     }
+    return original;
+    */
 
-    //if we get no edge at the end
-    return features;
 }
 
-vector<Feature> filterSmall(vector<Feature>& features, int threshold){
 
-    for(std::vector<Feature>::size_type i = features.size() - 1; 
-            i != (std::vector<Feature>::size_type) -1; i--) {
-        /* std::cout << someVector[i]; ... */
-        if(features[i].distance < threshold){
-            features.erase(features.begin()+i);
-        }
-    }
-    return features;
-}
+
 
 
 
 
 void loop(Mat original){
+
+    original = removeNoise(original);
 
     Mat floatImage = flattenRawImage(original);
     //cv::cvtColor(floatImage, floatImage, CV_GRAY2);
@@ -334,11 +246,11 @@ void loop(Mat original){
     Mat dilated = getDilatedImage(threshold);
     Mat flat_dilated = flattenRawImage(dilated);
 
-    Mat display;
-    cvtColor(flat_dilated, display, CV_GRAY2BGR);
-    //cvtColor(dilated, dilated, CV_GRAY2BGR);
-
-    //cvtColor(flat_dilated, display, CV_GRAY2BGR);
+    double angle = getAngle(dilated);
+    cout << "angle" << angle<< endl;
+    std_msgs::Float32 msg;
+    msg.data = angle;
+    angle_pub.publish(msg);
 
     //floodfill and isolation 
     Mat flooded = dilated.clone();
@@ -362,11 +274,10 @@ void loop(Mat original){
     Mat floor_arc;
     cvtColor(flooded, floor_arc, CV_GRAY2BGR);
     //floor_arc = getFloorArced(flooded, floor_arc, 20);
-
-    for(int i = 0; i < 100; i+=20){
-        floor_arc = getFloorArced(flooded, floor_arc, i);
-    }
     //floor_arc = showFeatures(floor_arc, features);
+    //
+    float distance = readDistance(original, x, y);
+    addText(flat_orig, "value:", distance, x, y);
 
 
 
@@ -386,7 +297,7 @@ void loop(Mat original){
     imshow("Threshold", flattenRawImage(threshold));
 #endif
 #if DILATED
-    imshow("Dilated", display);
+    imshow("Dilated", dilated);
 #endif
 #if FLOOD_FILL
     imshow("Flood Fill", flooded);
@@ -452,14 +363,14 @@ void addText(Mat image, string text, double data, int x, int y){
 }
 
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv){
     ros::init(argc, argv, "derivField");
 
     ros::NodeHandle n;
     ros::Subscriber sub = n.subscribe("/camera/depth/image_raw", 1, kinectCallBack);      
 
     center_pub = n.advertise<std_msgs::Float32>("/gunncs/center", 1);
+    angle_pub= n.advertise<std_msgs::Float32>("/gunncs/angle", 1);
     //pub_ = nh_.advertise<std_msgs::Float32>("tracking/normal_distance", 1);
     //
 #if TUNER
@@ -474,6 +385,7 @@ int main(int argc, char **argv)
 
 #if ORIGINAL
     namedWindow("Original");
+    setMouseCallback("Original", onMouse, 0);
 #endif
 #if GRAD 
     namedWindow("Grad");
@@ -489,6 +401,7 @@ int main(int argc, char **argv)
 #endif
 #if DILATED
     namedWindow("Dilated");
+    setMouseCallback("Dilated", onMouse, 0);
 #endif
 #if FLOOD_FILL
     namedWindow("Flood Fill");
