@@ -124,10 +124,10 @@ Mat getDilatedImage(const Mat& img){
  * Used by flood fill operation
  */
 Point getGroundPoint(const Mat& dilated_binary){
-    for(int i = 479; i>0; i--){
+    for(int i = 450; i>0; i--){ //start at 450 to avoid base
         Point p (320, i);
         if (dilated_binary.at<float>(p) == 0){
-            return p;
+            return Point(320, i);
         }
     }
     return Point();
@@ -157,7 +157,7 @@ Mat getFloorArced(const Mat& flooded, Mat& floor_arc, int height){
     //floodfill arc 
     //cvtColor(flooded, floor_arc, CV_GRAY2BGR);
 
-    for (int x = height; x<640- height; x++){
+    for (int x = 0; x<640; x++){
         int y = 480- height;
         Point toDisplay  = Point(x,y);
         Point cartesian = cartesianPoint(toDisplay);
@@ -169,7 +169,7 @@ Mat getFloorArced(const Mat& flooded, Mat& floor_arc, int height){
             circle(floor_arc, toDisplay, 1, Scalar(255, 0, 0), -1);
         }
     }
-    for (int x = height; x<640- height; x++){
+    for (int x = 0; x<640; x++){
         int y =  height;
         Point toDisplay  = Point(x,y);
         Point cartesian = cartesianPoint(toDisplay);
@@ -181,7 +181,7 @@ Mat getFloorArced(const Mat& flooded, Mat& floor_arc, int height){
             circle(floor_arc, toDisplay, 1, Scalar(255, 0, 0), -1);
         }
     }
-    for (int y = height; y<480- height; y++){
+    for (int y = 0; y<480; y++){
         int x =  height;
         Point toDisplay  = Point(x,y);
         Point cartesian = cartesianPoint(toDisplay);
@@ -193,7 +193,7 @@ Mat getFloorArced(const Mat& flooded, Mat& floor_arc, int height){
             circle(floor_arc, toDisplay, 1, Scalar(255, 0, 0), -1);
         }
     }
-    for (int y = height; y<480- height; y++){
+    for (int y = 0; y<480; y++){
         int x =  640 -height;
         Point toDisplay  = Point(x,y);
         Point cartesian = cartesianPoint(toDisplay);
@@ -361,13 +361,11 @@ void loop(Mat original){
 
     Mat floor_arc;
     cvtColor(flooded, floor_arc, CV_GRAY2BGR);
-    floor_arc = getFloorArced(flooded, floor_arc, 20);
+    //floor_arc = getFloorArced(flooded, floor_arc, 20);
 
-    /*
-    for(int i = 0; i < 320; i+=20){
+    for(int i = 0; i < 100; i+=20){
         floor_arc = getFloorArced(flooded, floor_arc, i);
     }
-    */
     //floor_arc = showFeatures(floor_arc, features);
 
 
@@ -408,7 +406,7 @@ void onMouse( int event, int x_pos, int y_pos, int flags, void* param){
     stringstream str;
     str << "mouse event:   x" << x_pos << "\ty:" << y << "\tevent: " << event<< endl;
     //ROS_INFO(str.str());
-    //cout << str.str() << endl;
+    cout << str.str() << endl;
 }
 
 
