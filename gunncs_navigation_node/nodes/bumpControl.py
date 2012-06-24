@@ -73,13 +73,13 @@ def explore(): #do right wall following while generating a map
                 currentCellX+=1
             if (currentCellX, currentCellY) in traveledSpaces:
                 if (virtualTheta == 0):
-                    horizontalWalls[currentCellX][currentCellY+1] = WALL_BLOCKED
+                    horizontalWalls[currentCellX][currentCellY+1] = WALL_BADPATH
                 elif (virtualTheta == 90):
-                    verticalWalls[currentCellX+1][currentCellY] = WALL_BLOCKED
+                    verticalWalls[currentCellX+1][currentCellY] = WALL_BADPATH
                 elif (virtualTheta == 180):
-                    horizontalWalls[currentCellX][currentCellY] = WALL_BLOCKED
+                    horizontalWalls[currentCellX][currentCellY] = WALL_BADPATH
                 elif (virtualTheta ==  270):
-                    verticalWalls[currentCellX][currentCellY] = WALL_BLOCKED
+                    verticalWalls[currentCellX][currentCellY] = WALL_BADPATH
             else:
                 traveledSpaces += [(currentCellX, currentCellY)]
             turnRight();
@@ -102,13 +102,13 @@ def explore(): #do right wall following while generating a map
 
 def canMove(virtualTheta, x, y, horizontalWalls, verticalWalls):
    if (virtualTheta == 0):
-        return horizontalWalls[x][y]==WALL_OPEN
+        return horizontalWalls[x][y]=!WALL_BADPATH
    elif (virtualTheta == 90):
-        return verticalWalls[x][y]==WALL_OPEN
+        return verticalWalls[x][y]=!WALL_BADPATH
    elif (virtualTheta == 180):
-        return horizontalWalls[x][y-1]==WALL_OPEN
+        return horizontalWalls[x][y-1]=!WALL_BADPATH
    elif (virtualTheta == 270):
-        return verticalWalls[x+1][y]==WALL_OPEN
+        return verticalWalls[x+1][y]=!WALL_BADPATH
    else:
        return False
 
@@ -191,10 +191,10 @@ def investigateDirection(): #returns True if we explore a new cell
     if (bumped): 
         print "bumped: moving backward"
         moveBackward(DIST_CELL_CENTER_TO_WALL)
-        print ("angleCorrection:" + str(angleCorrection))
-        if (angleCorrection != 0): #indicating we are tilted
+        print ("angleCorrection:" + str(kAngle))
+        if (kAngle != 0): #indicating we are tilted
             #perform a turn
-            turnDegrees(5 * angleCorrection)
+            turnDegrees(kAngle)
     return not bumped #not bumped means we got no obstacles, meaning new cell
 
 def botStateChanged(data):
@@ -238,9 +238,13 @@ def dockingStart(data):
     global docking
     docking = data
 
+def kAngleChanged(data)
+    global kAngle
+    kAngle = data
 
 def main():
-    global pub, theta, x, y, bumped, commanded, docking, window
+    global pub, theta, x, y, bumped, commanded, docking, window,kAngle
+    kAngle = 0
     pygame.init()
     window = pygame.display.set_mode((610,610))
     theta = -999
@@ -254,6 +258,7 @@ def main():
     rospy.Subscriber("/docking", Bool, dockingStart)
     rospy.Subscriber("/odom2D", Pose2D, poseChange)
     rospy.Subscriber("/turtlebot_node/sensor_state", TurtlebotSensorState, botStateChanged)
+    rospy.Subscriber("/gunncs/angle", Float32, kAngleChanged)
     #rospy.Subscriber("/cmd_vel", Twist, twistChanged)
     pub = rospy.Publisher("/cmd_vel", Twist)
 
