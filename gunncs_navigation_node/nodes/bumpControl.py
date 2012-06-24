@@ -102,13 +102,13 @@ def explore(): #do right wall following while generating a map
 
 def canMove(virtualTheta, x, y, horizontalWalls, verticalWalls):
    if (virtualTheta == 0):
-        return horizontalWalls[x][y]=!WALL_BADPATH
+        return horizontalWalls[x][y]!=WALL_BADPATH
    elif (virtualTheta == 90):
-        return verticalWalls[x][y]=!WALL_BADPATH
+        return verticalWalls[x][y]!=WALL_BADPATH
    elif (virtualTheta == 180):
-        return horizontalWalls[x][y-1]=!WALL_BADPATH
+        return horizontalWalls[x][y-1]!=WALL_BADPATH
    elif (virtualTheta == 270):
-        return verticalWalls[x+1][y]=!WALL_BADPATH
+        return verticalWalls[x+1][y]!=WALL_BADPATH
    else:
        return False
 
@@ -238,7 +238,7 @@ def dockingStart(data):
     global docking
     docking = data
 
-def kAngleChanged(data)
+def kAngleChanged(data):
     global kAngle
     kAngle = data
 
