@@ -123,11 +123,14 @@ def doMazeFast(horizontalWalls, verticalWalls):
         right = (virtualTheta + 270)%360
         if canMove(right,currentCellX,currentCellY,horizontalWalls,verticalWalls):
             turnRight()
-            virtualTheta = right
-            investigateDirection()
-        elif canMove(virtualTheta,currentCellX,currentCellY,horizontalWalls,verticalWalls):
-            investigateDirection()
-        elif canMove(left,currentCellX,currentCellY,horizontalWalls,verticalWalls):
+            moved = investigateDirection()
+            if (not moved):
+                    turnLeft()
+            else:
+                    virtualTheta = right
+        if (not moved) && canMove(virtualTheta,currentCellX,currentCellY,horizontalWalls,verticalWalls):
+            moved = investigateDirection()
+        if (not moved) && canMove(left,currentCellX,currentCellY,horizontalWalls,verticalWalls):
             turnLeft()
             virtualTheta = left
             investigateDirection()
@@ -192,9 +195,11 @@ def investigateDirection(): #returns True if we explore a new cell
         print "bumped: moving backward"
         moveBackward(DIST_CELL_CENTER_TO_WALL)
         print ("angleCorrection:" + str(kAngle))
-        if (kAngle != 0): #indicating we are tilted
-            #perform a turn
-            turnDegrees(kAngle)
+        #perform a turn
+        pub_c.publish(True)
+        while (math.abs(kAngle)>0.5):
+                rospy.sleep(SLEEPYTIME)
+        pub_c.publish(False)
     return not bumped #not bumped means we got no obstacles, meaning new cell
 
 def botStateChanged(data):
@@ -243,7 +248,7 @@ def kAngleChanged(data):
     kAngle = data
 
 def main():
-    global pub, theta, x, y, bumped, commanded, docking, window,kAngle
+    global pub, theta, x, y, bumped, commanded, docking, window,kAngle,pub_c
     kAngle = 0
     pygame.init()
     window = pygame.display.set_mode((610,610))
@@ -259,8 +264,9 @@ def main():
     rospy.Subscriber("/odom2D", Pose2D, poseChange)
     rospy.Subscriber("/turtlebot_node/sensor_state", TurtlebotSensorState, botStateChanged)
     rospy.Subscriber("/gunncs/angle", Float32, kAngleChanged)
-    #rospy.Subscriber("/cmd_vel", Twist, twistChanged)
+   #rospy.Subscriber("/cmd_vel", Twist, twistChanged)
     pub = rospy.Publisher("/cmd_vel", Twist)
+    pub_c = rospy.Publisher("/gunncs/angleControl", Bool)
 
     '''
     main logic:
